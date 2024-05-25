@@ -1,8 +1,9 @@
-import { Body, Controller, Get, HttpException, HttpStatus, InternalServerErrorException, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpException, HttpStatus, InternalServerErrorException, Post, Query, Res } from '@nestjs/common';
 import { CreateSaleDto } from './dtos/CreateSaleDTO';
 import { SaleService } from './SalesService';
 import { PostSaleDto } from './dtos/PostSaleDto';
 import { query } from 'express';
+import { Result } from '../category/Response/Result';
 @Controller('sales')
 export class SalesController {
     constructor(
@@ -22,13 +23,16 @@ export class SalesController {
     async addRecord(@Body() sale_data : PostSaleDto) {
         try {
             const { productId, qty, purchaseQty}  = sale_data;
+
             if (purchaseQty > qty) {
-                throw new HttpException(`insufficient Qty for  ${productId} pls input less qty value`, HttpStatus.BAD_REQUEST);
+                throw new BadRequestException(`insufficient Qty for  ${productId} pls input less qty value`);
             }
             return await this.salesService.addRecord(sale_data);
         } catch (error) {
+            if (error instanceof BadRequestException) {
+                return new Result(false, `Error: ${error.message}`);
+            }
             return error;
-        
         }
     }
        
@@ -46,33 +50,36 @@ export class SalesController {
              }
         }
     }
-
     //All daily sales
         @Get()
-        fetchSales(@Query('startDate') startDate?: Date, @Query('endDate') endDate?: Date) {
+         async fetchSales(@Query('startDate') startDate?: Date, @Query('endDate') endDate?: Date) {
             try {
-                return this.salesService.sales(startDate, endDate);
+                let sales =  await this.salesService.sales(startDate, endDate);
+                return new Result(true, 'Sales Records', sales);
             }
             catch (error) {
-              return { error , success: false }
+              return new Result(false, `Error fetching daily sales ${error}`);
             }
         }
-    //monthly sales per product per day
-    @Get('/monthly')
-    async getMonthProductSales() {
+
+    @Get('/product/records')
+    async getProductRecords(@Query('id') id: number) {
+       try {
+         return  await this.salesService.test(id);
+      
+       } catch (error) {
+          return error;
+       }
+    }
+
+    @Get('/product/summary') 
+    async GetproductSummary() {
         try {
-            return await this.salesService.monthlyProductSales();
+            return await this.salesService.GetProductSummaryData();
         } catch (error) {
             return error;
         }
     }
-    //
-    @Get('/product/records')
-    async getProductRecords(@Query('productName') productName: string, @Query('date') date: Date,) {
-        const result = await this.salesService.test(productName, date);
-        return result;
-    }
-
     @Get('/invoices')
     async fetchInvoiceData() {
         try {
@@ -90,6 +97,17 @@ export class SalesController {
             return result;
         } catch (error) {
             return error
+        }
+    }
+    @Get('/report')
+    async generateReport(@Query('startDate') startDate?: Date, @Query('endDate') endDate?: Date) {
+        try {
+            const result =  await this.salesService.generateReport(startDate, endDate);
+            console.log(result);
+            const jsonData = JSON.stringify(result);
+            return jsonData;
+        } catch (error) {
+            return { error , success: false }
         }
     }
 }

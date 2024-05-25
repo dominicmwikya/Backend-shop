@@ -13,8 +13,9 @@ import { PurchaseController } from "./PurchaseController";
 import { PurchaseService } from "./PurchaseService";
 import { UsersService } from "../Users/UserService";
 import { UserEntity } from "../Users/entities/User.entity";
+import { LoginEntity } from "../Users/entities/Login.Entity";
 @Module({
-    imports: [ProductModule, UsersModule, BatchModule, TypeOrmModule.forFeature([Purchases, Product, Supplier, BatchNumbers, UserEntity])],
+    imports: [ProductModule, UsersModule, BatchModule, TypeOrmModule.forFeature([Purchases, Product, Supplier, BatchNumbers, UserEntity, LoginEntity])],
     controllers: [PurchaseController],
     providers: [PurchaseService, ProductService, BatchService, UsersService, UsersService],
     exports: [ PurchaseService]

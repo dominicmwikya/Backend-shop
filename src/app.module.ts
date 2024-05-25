@@ -22,6 +22,9 @@ import { Supplier } from './Modules/Suppliers/entities/Supplier.Entity';
 import { BatchNumbers } from './Modules/Batchs/entities/BatchNumbers';
 import { Receipt } from './Modules/Receipts/entities/Receipt.entity';
 import { Email } from './Modules/Email/entities/Email';
+import { CategoryModule } from './Modules/category/category.module';
+import { CategoryEntity } from './Modules/category/CategoryEntity';
+import { LoginEntity } from './Modules/Users/entities/Login.Entity';
 
 @Module({
   imports: [
@@ -34,6 +37,7 @@ import { Email } from './Modules/Email/entities/Email';
     SupplierModule,
     ReceiptModule,
     EmailModule,
+    CategoryModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),
@@ -46,7 +50,7 @@ import { Email } from './Modules/Email/entities/Email';
           username: process.env.DB_USER,
           password: process.env.DB_PASSWORD,
           database: process.env.DB_NAME,
-          entities: [UserEntity, Profile, Product,Purchases, Sale, Role, Supplier, BatchNumbers, Receipt, Email],
+          entities: [UserEntity, Profile, Product,Purchases, Sale, Role, Supplier, BatchNumbers, Receipt, Email, CategoryEntity, LoginEntity],
           synchronize: true,
          }
       }

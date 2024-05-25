@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from
 import { Reflector } from '@nestjs/core';
 import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { Request } from 'express';
+import { Result } from '../category/Response/Result';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -14,6 +15,7 @@ export class AuthGuard implements CanActivate {
 		const token = this.extractTokenFromHeader(request);
 
 		if (!token) {
+		
 			throw new UnauthorizedException("You must log in to access the app services");
 		}
 		try {
@@ -36,9 +38,9 @@ export class AuthGuard implements CanActivate {
 			request['user'] = payload;
 		} catch (error) {
 			if (error instanceof TokenExpiredError) {
-				throw new UnauthorizedException('Your session has expired! please login');
+				throw new UnauthorizedException(`Your session has expired! please login ${error.message}`);
 			} else if (error instanceof JsonWebTokenError) {
-                throw new UnauthorizedException('Invalid JWT Token');
+                throw new UnauthorizedException(`Invalid JWT Token ${error.message}`);
 			}
 			throw error;
 		}

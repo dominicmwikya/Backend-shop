@@ -27,7 +27,7 @@ export class ReceiptService {
             status: balance === 0 ? 'Paid' : 'Due',
         });
 
-        return entityManager.transaction(async transactionalEntityManager => {
+        return entityManager.transaction(async (transactionalEntityManager) => {
             try {
                 // Save the receipt entity within the transaction
                 const result = await transactionalEntityManager.save(newReceipt);
@@ -39,7 +39,7 @@ export class ReceiptService {
                 await transactionalEntityManager.update(Receipt, result.id, { receiptNumber: receiptNo });
                 return result;
             } catch (error) {
-                throw error;
+                return error;
             }
         });
     }

@@ -3,11 +3,11 @@ import { JwtModule, JwtModuleOptions, JwtSignOptions } from '@nestjs/jwt';
 import { UsersModule } from "../Users/UsersModule";
 import { AuthController } from "./AuthController";
 import { AuthService } from "./AuthService";
-import { Bcryptpassword } from "./Utils/bycrpt.util";
+import { Bcryptpassword } from "../Utils/bycrpt.util";
 import { AuthGuard } from "./authGuard";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 @Module({
-    imports: [UsersModule,
+    imports: [
         ConfigModule,
         JwtModule.registerAsync({
             imports:[ConfigModule],

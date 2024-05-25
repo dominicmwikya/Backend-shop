@@ -3,6 +3,7 @@ import { Product } from '../../Products/entities/Product.entity';
 import { Purchases } from '../../Purchases/entities/Purchases.Entity';
 import { Receipt } from '../../Receipts/entities/Receipt.entity';
 import { UserEntity } from '../../Users/entities/User.entity';
+import { Transform } from 'class-transformer'
 @Entity()
 export class Sale extends BaseEntity {
   @PrimaryGeneratedColumn()
@@ -23,6 +24,7 @@ export class Sale extends BaseEntity {
   balance!: number;
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Transform(({ value }) => value.toLocaleString('en-US', { timeZone: 'UTC' }))
   sell_date!: Date;
   @Column({ default: null })
   status!: string;
@@ -41,4 +43,5 @@ export class Sale extends BaseEntity {
   @ManyToOne(() => Receipt, (receipt) => receipt.sales)
   @JoinColumn()
   receipt: Receipt;
+
 }

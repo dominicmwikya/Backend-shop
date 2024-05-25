@@ -2,9 +2,11 @@ import { ApiProperty } from "@nestjs/swagger";
 
 export class UpdatePurchaseDto {
     @ApiProperty()
-    price?: number;
+    batchNumber : number;
     @ApiProperty()
-    quantity?: number;
+    quantity: number;
     @ApiProperty()
-    sprice?: number;
+    sprice : number;
+    @ApiProperty()
+    product: number
 }

@@ -2,16 +2,19 @@ import { BadRequestException, Body, ConflictException, Controller, Delete, Get, 
 import { UsersService } from "./UserService";
 import { CreateUserDto } from './dtos/CreateUserDto';
 import { UserEntity } from "./entities/User.entity";
-import { EmailValidation } from "../Auth/Utils/emailValidation";
-import { PasswordValidator } from "../Auth/Utils/passwordValidator";
+import { EmailValidation } from "../Utils/emailValidation";
+import { PasswordValidator } from "../Utils/passwordValidator";
 import { signInDTO } from "../Auth/siginInDTO";
-import { SuccessResult } from "../Auth/Utils/SuccessResult";
+import { SuccessResult } from "../Utils/SuccessResult";
 import { UserChangePassDTO } from "./dtos/UserChangePassDTO";
+import { Result } from "../category/Response/Result";
+import { AuthService } from "../Auth/AuthService";
 @Controller('users')
 export class UsersController {
 	constructor(private userService: UsersService,
 		private emailValidator :EmailValidation,
-		private readonly passwordValidator : PasswordValidator
+		private readonly passwordValidator : PasswordValidator,
+		private readonly authService : AuthService 
 		) { }
 
 	@Post('/create')
@@ -43,14 +46,17 @@ export class UsersController {
 	
 	@Post('/login')
 	async signIn(@Body() data: signInDTO) {
+	
 		const validEmail = await this.emailValidator.validateEmail(data.email);
 		if (!validEmail) {
-			throw new BadRequestException(`Invalid email address! Try again`);
+			return new Result(false, `Invalid email address! Try again`)
 		}
 		try {
+			
 			return await this.userService.Signin(data.email, data.password);
 		} catch (error) {
-			throw error;
+			
+			return error;
 		}
 	}
    //Get all users

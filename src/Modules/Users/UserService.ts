@@ -1,13 +1,17 @@
 import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserEntity } from 'src/Modules/Users/entities/User.entity';
-import { Repository } from 'typeorm';
-import { Bcryptpassword } from '../Auth/Utils/bycrpt.util';
+import { RelationId, Repository } from 'typeorm';
+import { Bcryptpassword } from '../Utils/bycrpt.util';
 import { EmailService } from '../Email/email.service';
 import { CreateUserDto } from './dtos/CreateUserDto';
 import { JwtService } from '@nestjs/jwt';
-import { SuccessResult } from '../Auth/Utils/SuccessResult';
+import { SuccessResult } from '../Utils/SuccessResult';
 import { UserChangePassDTO } from './dtos/UserChangePassDTO';
+import { Result } from '../category/Response/Result';
+import { AuthService } from '../Auth/AuthService';
+import { LoginEntity } from './entities/Login.Entity';
+import { CreateLoginEntityInput } from './interfaces/CreateLoginEntityInput';
 @Injectable()
 export class UsersService {
 	constructor(
@@ -15,7 +19,11 @@ export class UsersService {
 		@InjectRepository(UserEntity)
 		private userRepository: Repository<UserEntity>,
 		private readonly emailService: EmailService,
-		private JwtService : JwtService
+		private JwtService : JwtService,
+		private readonly authService : AuthService,
+
+		@InjectRepository(LoginEntity)
+		private  loginRepository: Repository<LoginEntity>
 	) { }
 
 
@@ -29,7 +37,7 @@ export class UsersService {
 	async Signin(email: string, pass: string): Promise<any> {
         const user = await this.findOneByEmail(email);
         if (!user) {
-            throw new NotFoundException(`Wrong username or email address`);
+            throw new NotFoundException(`Incorrect user name or email address`);
         }
          
 		try {
@@ -37,38 +45,45 @@ export class UsersService {
 			if (!passwordMatch) {
 				throw new BadRequestException(`Wrong username or email address`);
 			}
-			const payload = { sub: user.id, id: user.id,  username: user.username, email: user.email, role: user.role, phone:user.phone, roles:user.role };
-			return {
-					accessToken: await this.JwtService.signAsync(payload, 
-						{
-							privateKey:process.env.SECRET_KEY_API_KEY,
-							expiresIn:'1hr'
-						}),
 
-					email: user.email,
-					userId: user.id,
-					role:user.role,
-					id: user.id
+			const { accessToken, refreshTokens} = await this.authService.getTokens(user);
+		
+			const newRefreshTokenInput : CreateLoginEntityInput = {
+				refreshTokens: refreshTokens, 
+				expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 
+				user: user,
 			};
+
+			const newRefreshToken =  this.loginRepository.create(newRefreshTokenInput);
+			await this.loginRepository.save(newRefreshToken);
+
+			const userdata = {
+							id: user.id,  
+							username: user.username, 
+							email: user.email,
+							role: user.role, 
+							phone:user.phone,
+							roles:user.role 
+						}
+
+	
+			return {success: true, token: accessToken, message:"User Login successful", user: userdata}
 		
 		} catch (error) {
-			if (error instanceof NotFoundException) {
-				throw error;
-			}
-			if (error instanceof BadRequestException) {
-				throw error;
+			if ( error instanceof NotFoundException || error instanceof BadRequestException ) {
+				return new Result(false, error.message);
 			}
 			else {
-				throw new InternalServerErrorException(`Login failed ${error.message}`);
+		
+				return new Result(false, `Login failed ${error.message}` )
 			}
-		}
+		}``
     }
-	//ADD USER.
+ 	//ADD USER.
 	async createUser(user: CreateUserDto) {
 		const { role, username, email, status, phone, password } = user;
 
 		let newUser: any;
-
 		const queryRunner = this.userRepository.manager.connection.createQueryRunner();
 		queryRunner.startTransaction();
 

@@ -1,5 +1,5 @@
 
-import { Body, Controller, Delete, Get, HttpException, HttpStatus, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpException, HttpStatus, Param, Post, Put, UseGuards, Query } from '@nestjs/common';
 import { PurchaseService } from './PurchaseService';
 import { UpdatePurchaseDto } from './dtos/UpdatePurchaseDto';
 import { purchasedto } from './dtos/purchase';
@@ -16,13 +16,26 @@ export class PurchaseController {
 
 	) { }
 
+	@Get('/report')
+    async generateReport(@Query('startDate') startDate: Date, @Query('endDate') endDate: Date) {
+       try {
+		let result = await this.purchaseService.generateReport(startDate, endDate);
+		console.log("purchases", result)
+		
+		return result;
+	   } catch (error) {
+		console.log(error)
+		return error
+	   }
+    }
+
 	@Get()
 	async getPurchases() {
 		try {
-			const response = await this.purchaseService.getPurchases();
-			return response;
+			return await this.purchaseService.getPurchases();
+		
 		} catch (error) {
-			throw error;
+			return error
 		}
 	}
 
@@ -41,17 +54,15 @@ export class PurchaseController {
 	try {
 		return await this.purchaseService.addRecord(body);
 	} catch (error) {
-		console.log('error', error.message);
-		throw error;
+	    return error;
 	}
 	}
 	@Put('/update/:id')
 	async updatePurchase(@Param('id') id: number, @Body() data: UpdatePurchaseDto) {
 		try {
-			const result = await this.purchaseService.updatePurchase(id, data);
-			return result;
+			return await this.purchaseService.updatePurchase(id, data);
 		} catch (error) {
-			throw new HttpException({ error: `${error} error updating purchase` }, HttpStatus.INTERNAL_SERVER_ERROR)
+			 return error;
 		}
 	}
 	@Delete('/delete/:id')
@@ -101,6 +112,4 @@ export class PurchaseController {
 	async findById(@Param('id') purchaseId: number) {
 		return await this.purchaseService.findOne(purchaseId)
 	}
-
-
 }

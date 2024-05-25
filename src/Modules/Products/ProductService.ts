@@ -1,7 +1,7 @@
 import { ConflictException, HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Product } from "src/Modules/Products/entities/Product.entity";
-import { EntityManager, Not, Repository } from "typeorm";
+import { Between, EntityManager, Not, Repository } from "typeorm";
 import { PurchaseService } from "../Purchases/PurchaseService";
 import { createProductDTO } from "./dtos/createProductDTO";
 @Injectable()
@@ -79,7 +79,7 @@ export class ProductService {
 		}
 	}
 
-	async updateProductQuantity (entityManager : EntityManager, productId, purchase_qty) {
+	async updateProductQuantity (entityManager : EntityManager, productId : number, purchase_qty: number) {
 		try {
 			const product =  await this.productById(productId);
 			if (product) {
@@ -90,11 +90,11 @@ export class ProductService {
 				throw new NotFoundException(`Product ${productId} not found`);
 			}
 		} catch (error) {
-			if (error instanceof NotFoundException) {
+			if (error || error instanceof NotFoundException) {
 				return error;
 			}
 			else{
-				throw new InternalServerErrorException(`Error ${error.message}`);
+				return error;
 			}
 		}
 	}
@@ -142,10 +142,31 @@ export class ProductService {
 		return await this.productRepository.findOne({ where: { id: id } });
 	}
 
-	async findOne(id: number) {
+	private async findOne(id: number) {
 		return await this.productRepository.findOne({
 			where: { id: id, flag: 0 },
 			relations: ['purchases', 'sales', 'users']
 		});
+	}
+	async generateReport(startDate?: Date, endDate? : Date) {
+		try {
+			let product:Product[] = [];
+			const queryConditions: any = {};
+			if (startDate && endDate) {
+				queryConditions.sell_date = Between(startDate, endDate);
+			}
+
+		    product = await this.productRepository.find({
+				relations:['purchases'],
+				where: queryConditions
+		});
+
+		return product;
+		} catch (error) {
+			console.log(error)
+			return {
+				error:error.message
+			}
+		}
 	}
 }

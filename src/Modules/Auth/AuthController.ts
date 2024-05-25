@@ -1,23 +1,23 @@
 
-import { Body, Controller, Get, Request, UseGuards } from "@nestjs/common";
+import {  Controller, Get, Request, UseGuards } from "@nestjs/common";
 import { AuthGuard } from "./authGuard";
+import { Result } from "../category/Response/Result";
 @Controller('auth')
 export class AuthController {
 	@UseGuards(AuthGuard)
 	@Get('verify-token')
 	GetUserTokenVerification(@Request() req: any) {
 		if (req.user) {
-			return {
-				id: req.user.id,
+			const user = {
 				email: req.user.email,
 				username: req.user.username,
 				userId: req.user.userId,
 				phone: req.user.phone,
 				role: req.user.role
 			}
+		return new Result(true, "User Already Authenticated", user);
 		}
-		return {
-			error: "No valid token found! please login"
-		}
+
+	    return new Result(false, `Token Verification Failed`)
 	}
 }

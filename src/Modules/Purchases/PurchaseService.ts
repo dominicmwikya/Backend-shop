@@ -3,28 +3,33 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Product } from "src/Modules/Products/entities/Product.entity";
 import { Purchases } from "src/Modules/Purchases/entities/Purchases.Entity";
 import { UserEntity } from "src/Modules/Users/entities/User.entity";
-import { EntityManager, ILike, Repository } from "typeorm";
+import { Between, EntityManager, ILike, Repository } from "typeorm";
 import { BatchService } from "../Batchs/BatchService";
 import { UpdatePurchaseDto } from './dtos/UpdatePurchaseDto';
 import { purchasedto } from "./dtos/purchase";
 import { PurchaseDto } from "./dtos/purchaseDto";
 import { UsersService } from "../Users/UserService";
+import { Result } from "../category/Response/Result";
 @Injectable()
 export class PurchaseService {
 	constructor(@InjectRepository(Purchases)
 	    private purchaseRepository: Repository<Purchases>,
 		private batchService: BatchService,
-		// private userservice: UsersService,
+		private readonly entityManager : EntityManager,
 		@InjectRepository(Product) private productRepository: Repository<Product>,
 		@InjectRepository(UserEntity) private userRepository: Repository<UserEntity>,
 		
 	) { }
 
 	async addRecord(body: purchasedto[]) {
-		const purchaseData = body;
-		const savedPurchases: Purchases[] = [];
-
 		try {
+			const queryRunner = this.entityManager.connection.createQueryRunner();
+			await queryRunner.connect();
+			await queryRunner.startTransaction();
+			const entityManager = queryRunner.manager;
+			const purchaseData = body;
+			const savedPurchases: Purchases[] = [];
+
 			for (const purchase of purchaseData) {
 				const p_id = purchase.productId;
 				const product = await this.productRepository.findOne( { where :{id :p_id}});
@@ -32,7 +37,7 @@ export class PurchaseService {
 					throw new NotFoundException(`Product id ${purchase.productId} Not found`);
 				}
 				const user_id = purchase.userId
-				const user = await this.userRepository.findOne({where :{id : user_id}});
+				// const user = await this.userRepository.findOne({where :{id : user_id}});
 
 				const dataDto: PurchaseDto = {
 					price: purchase.price,
@@ -42,7 +47,6 @@ export class PurchaseService {
 				const batchNumber = await this.batchService.generateBatchNumber();
 				const addresult =  this.purchaseRepository.create({
 					product,
-					// user_,
 					batchcode: batchNumber,
 					purchase_Price: dataDto.price,
 					purchase_Qty: dataDto.quantity,
@@ -50,20 +54,22 @@ export class PurchaseService {
 					purchase_Total: Number.parseInt(dataDto.price.toString()) *
 						Number.parseInt(dataDto.quantity.toString()),
 				});
+
 				const response : Purchases  = await this.purchaseRepository.save(addresult);
 				product.qty += Number.parseInt(dataDto.quantity.toString());
 		       
 				await this.productRepository.save(product);
+				await queryRunner.commitTransaction();
 				savedPurchases.push(response);
 			}
 			return  savedPurchases;
 		
 		} catch (error) {
 			if (error instanceof NotFoundException) {
-				throw error;
+				return new Result(false, `Error : ${error.message}`)
 			}
 			else{
-				throw new InternalServerErrorException(`An error occured while creating purchase record. ${error.message}`)
+				return new Result(false, `Error : ${error.message}`)
 			}
 		}
 
@@ -119,29 +125,6 @@ export class PurchaseService {
 		return response;
 	}
 	
-
-	// async CreatePurchase(product: Product, user: UserEntity, price: number, quantity: number, sprice: number,) {
-	// 	const batchNumber = await this.batchService.generateBatchNumber();
-	// 	const newPurchase = this.purchaseRepository.create({
-	// 		product,
-	// 		user,
-	// 		batchcode: batchNumber,
-	// 		purchase_Price: price,
-	// 		purchase_Qty: quantity,
-	// 		sale_Price: sprice,
-	// 		purchase_Total: Number.parseInt(price.toString()) *
-	// 			Number.parseInt(quantity.toString()),
-	// 	});
-	// 	try {
-	// 		const savedPurchase = await this.purchaseRepository.save(newPurchase);
-	// 		product.qty += Number.parseInt(quantity.toString());
-	// 		await this.productRepository.save(product);
-	// 		return savedPurchase;
-	// 	} catch (error) {
-	// 		throw error;
-	// 	}
-	// }
-
 	async getPurchases() {
 		try {
 			const purchases = await this.purchaseRepository
@@ -159,14 +142,31 @@ export class PurchaseService {
 				.addSelect(['user.id', 'user.username', 'user.email'])
 				.addSelect(['product.id', 'product.category', 'product.name', 'product.min_qty', 'product.qty', 'product.sku'])
 				.where('purchase.flag = :flag', { flag: 0 })
-				.leftJoin('purchase.user', 'user') // Join the 'user' relation
-				.leftJoin('purchase.product', 'product') // Join the 'product' relation
+				.leftJoin('purchase.user', 'user') 
+				.leftJoin('purchase.product', 'product') 
 				.getMany();
 
-			return purchases;
+				const records  = purchases.map((purchase) => ({
+					id : purchase.id,
+			        batchcode: purchase.batchcode,
+					product: purchase.product.name,
+					productId : purchase.product.id,
+					purchaseId : purchase.id,
+					productQty: purchase.product.qty,
+					quantity: purchase.purchase_Qty,
+					total: purchase.purchase_Total,
+					availableQty: (purchase.purchase_Qty- purchase.soldQty),
+					salePrice: purchase.sale_Price,
+					dateCreated: purchase.createdAt,
+					userId: purchase.user
+				}));
+
+			
+				
+			return new Result(true, 'Purchases Data: ', records);
 		} catch (error) {
-			throw new HttpException({ error: `${error} error occured while fetching purchases` },
-				HttpStatus.INTERNAL_SERVER_ERROR)
+
+			return new Result(false, 'failed to fetch purchase data', error.message);
 		}
 	}
 
@@ -197,11 +197,11 @@ export class PurchaseService {
 		}
 	}
 
-	async updatePurchaseQuantity(entityManager: EntityManager, id: number, soldQty: any) {
+	async updatePurchaseQuantity(entityManager: EntityManager, batchId: number, soldQty: any) {
 	    try {
-			  await entityManager.update(Purchases, { batchcode: id }, { soldQty: soldQty });
+			 return  await entityManager.update(Purchases, { id: batchId }, { soldQty: soldQty });
 		} catch (error) {
-			throw new InternalServerErrorException(`Failed to update purchase quantity: ${error.message}`)
+			return error;
 		}
 	}
 
@@ -210,32 +210,36 @@ export class PurchaseService {
 			const purchase = await this.findOne(id);
 
 			if (!purchase) {
-				throw new HttpException(`Purchase record with id ${id} not found`, HttpStatus.NOT_FOUND);
+			   return new Result (false, `Purchase record with id ${id} not found`);
 			}
 
-			const { quantity, price, sprice } = updateData;
+			const { quantity, batchNumber, product, sprice } = updateData;
 
-			if (price !== undefined && quantity !== undefined && sprice !== undefined) {
-				const updatedTotalQty = Number(quantity) * Number(price);
+			if (batchNumber !== undefined && quantity !== undefined && sprice !== undefined && product !== undefined) {
 
 				const updateResult = await this.purchaseRepository.update(
 					{ id: purchase.id },
 					{
-						purchase_Price: price,
 						sale_Price: sprice,
-						purchase_Total: updatedTotalQty
+						
+						purchase_Qty: quantity
 					});
 
 				if (updateResult.affected === 1) {
-					return { message: `Purchase record with id ${id} updated successfully` };
+
+					return new Result( true, `Purchase record with id ${id} updated successfully`);
+			
 				} else {
-					return { error: `Failed to update purchase record with id ${id}. Please try again.` };
+					
+					return new Result( false, `Failed to update purchase record with id ${id}. Please try again.`);
 				}
 			} else {
-				return { error: 'Invalid update data. Please provide valid values for price, quantity, and sell price.' };
+
+				return new Result(false, "Invalid data. Please provide input values for price,product, quantity or batchnumber");
 			}
 		} catch (error) {
-			throw new HttpException(`An unexpected error occurred: ${error.message}`, HttpStatus.INTERNAL_SERVER_ERROR);
+			
+			return new Result( false,`An unexpected error occurred: ${error.message}` );
 		}
 	}
 
@@ -298,8 +302,6 @@ export class PurchaseService {
 		}
 	}
 
-
-
 	async fetchFastSellingBatches() {
 		const response = await this.purchaseRepository
 			.createQueryBuilder('fastsales')
@@ -327,5 +329,38 @@ export class PurchaseService {
 		return result;
 	}
 
+	async generateReport(startDate?: Date, endDate? : Date) {
+		try {
+			let purchases =  [];
+
+			const queryConditions: any = {};
+			if (startDate && endDate) {
+				queryConditions.createdAt = Between(startDate, endDate);
+			}
+
+		    purchases = await this.purchaseRepository.find({
+				relations:['product'],
+				where: queryConditions
+		    });
+
+			const result = purchases.map((purchase) => ({
+				id: purchase.id,
+				product_Name: purchase.product.name,
+				category: purchase.product.category,
+				batch_Number: purchase.batchcode,
+				purchase_Date: purchase.createdAt,
+				quantity: purchase.purchase_Qty,
+				buy_Price: purchase.purchase_Price,
+				purchase_total_cost : purchase.purchase_Total,
+				sell_Price: purchase.sale_Price,
+				quantity_Sold: purchase.soldQty,
+				available_Qty: purchase.product.qty,
+			}));
+		
+		return result;
+		} catch (error) {
+			return error.message
+		}
+	}
 
 }
