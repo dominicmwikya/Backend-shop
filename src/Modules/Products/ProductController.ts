@@ -1,5 +1,5 @@
 
-import { Body, Controller, Delete, Get, HttpException, HttpStatus, Param, Post, Put, UseGuards, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpException, HttpStatus, Param, Post, Put, UseGuards, Query, Req, Res } from '@nestjs/common';
 import { Product } from 'src/Modules/Products/entities/Product.entity';
 import { AuthGuard } from '../Auth/authGuard';
 import { Roles } from '../Auth/role.decorator';
@@ -7,21 +7,27 @@ import { ProductService } from './ProductService';
 import { createProductDTO } from './dtos/createProductDTO';
 import { ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '../Auth/role.enum';
+import { Response, Request } from 'express';
+import { Result } from '../category/Response/Result';
 
 @ApiBearerAuth()
 @Controller('products')
 export class ProductController {
 	constructor(private productService: ProductService) { }
-
 	@UseGuards(AuthGuard)
 	@Get('/')
 	@Roles(Role.Admin)
 	async getProducts() {
 		try {
-			return await this.productService.findAll();
+			const result = await this.productService.findAll();
+			console.log('results', result)
+			return result;
+
 		} catch (error) {
+			console.log("error", error);
 			throw error;
 		}
+	
 	}
 
 	@UseGuards(AuthGuard)
@@ -83,14 +89,14 @@ export class ProductController {
 	}
 
 	@Get('/report')
-    async generateReport(@Query('startDate') startDate: Date, @Query('endDate') endDate: Date) {
-       try {
-		let result = await this.productService.generateReport(startDate, endDate);
-		console.log(result)
-		return result;
-	   } catch (error) {
-		console.log(error)
-		return error
-	   }
-    }
+	async generateReport(@Query('startDate') startDate: Date, @Query('endDate') endDate: Date) {
+		try {
+			let result = await this.productService.generateReport(startDate, endDate);
+			console.log(result)
+			return result;
+		} catch (error) {
+			console.log(error)
+			return error
+		}
+	}
 }

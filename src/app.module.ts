@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ProductModule } from './Modules/Products/ProductModule';
@@ -25,6 +25,8 @@ import { Email } from './Modules/Email/entities/Email';
 import { CategoryModule } from './Modules/category/category.module';
 import { CategoryEntity } from './Modules/category/CategoryEntity';
 import { LoginEntity } from './Modules/Users/entities/Login.Entity';
+import cookieParser from 'cookie-parser';
+import { AuthMiddleware } from './Modules/Auth/AuthMiddleware';
 
 @Module({
   imports: [
@@ -59,4 +61,12 @@ import { LoginEntity } from './Modules/Users/entities/Login.Entity';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule 
+implements NestModule {
+    configure(consumer: MiddlewareConsumer) {
+        consumer.apply(AuthMiddleware)
+        .forRoutes({path:'users/token-verification', method: RequestMethod.GET})
+    }
+}
+
+

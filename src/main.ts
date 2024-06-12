@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import * as cookieParser from 'cookie-parser';
+import { ValidationPipe } from '@nestjs/common';
 
 
 async function bootstrap() {
@@ -9,6 +11,9 @@ async function bootstrap() {
     origin: 'http://localhost:3001',
     credentials: true
   });
+
+  app.use(cookieParser());
+  app.useGlobalPipes(new ValidationPipe());
 
   const config = new DocumentBuilder()
     .setTitle('SHOP BACKEND')
@@ -21,6 +26,5 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   await app.listen(5000);
-  console.log("screte", process.env.SECRET_KEY_API_KEY)
 }
 bootstrap();

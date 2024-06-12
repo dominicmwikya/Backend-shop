@@ -17,23 +17,23 @@ export class PurchaseController {
 	) { }
 
 	@Get('/report')
-    async generateReport(@Query('startDate') startDate: Date, @Query('endDate') endDate: Date) {
-       try {
-		let result = await this.purchaseService.generateReport(startDate, endDate);
-		console.log("purchases", result)
-		
-		return result;
-	   } catch (error) {
-		console.log(error)
-		return error
-	   }
-    }
+	async generateReport(@Query('startDate') startDate: Date, @Query('endDate') endDate: Date) {
+		try {
+			let result = await this.purchaseService.generateReport(startDate, endDate);
+			console.log("purchases", result)
+
+			return result;
+		} catch (error) {
+			console.log(error)
+			return error
+		}
+	}
 
 	@Get()
 	async getPurchases() {
 		try {
 			return await this.purchaseService.getPurchases();
-		
+
 		} catch (error) {
 			return error
 		}
@@ -51,18 +51,18 @@ export class PurchaseController {
 	}
 	@Post('create')
 	async createPurchase(@Body() body: purchasedto[]) {
-	try {
-		return await this.purchaseService.addRecord(body);
-	} catch (error) {
-	    return error;
-	}
+		try {
+			return await this.purchaseService.addRecord(body);
+		} catch (error) {
+			return error;
+		}
 	}
 	@Put('/update/:id')
 	async updatePurchase(@Param('id') id: number, @Body() data: UpdatePurchaseDto) {
 		try {
 			return await this.purchaseService.updatePurchase(id, data);
 		} catch (error) {
-			 return error;
+			return error;
 		}
 	}
 	@Delete('/delete/:id')

@@ -1,5 +1,5 @@
 
-import {  Controller, Get, Request, UseGuards } from "@nestjs/common";
+import {  Controller, Get, Request, UseGuards, Req } from "@nestjs/common";
 import { AuthGuard } from "./authGuard";
 import { Result } from "../category/Response/Result";
 @Controller('auth')
@@ -15,9 +15,18 @@ export class AuthController {
 				phone: req.user.phone,
 				role: req.user.role
 			}
-		return new Result(true, "User Already Authenticated", user);
+			const token = req.token;
+			const data = { token, user};
+
+		return new Result(true, "User Already Authenticated", data);
 		}
 
 	    return new Result(false, `Token Verification Failed`)
+	}
+
+	@Get()
+	protectedRoute(@Req() req: Request) {
+	  const user = req['user'];
+	  return new Result(true, 'Welcome', user);
 	}
 }

@@ -16,15 +16,15 @@ export class ProductService {
 			if (!products) {
 				throw new NotFoundException('Product table is EMPTY. PLS ADD PRODUCTS')
 			}
-			else{
+			else {
 				return products;
 			}
-		
+
 		} catch (error) {
 			if (error instanceof NotFoundException) {
 				throw error;
 			}
-			else{
+			else {
 				throw new InternalServerErrorException(`${error.message}`);
 			}
 		}
@@ -45,14 +45,14 @@ export class ProductService {
 				});
 				await this.productRepository.save(newProduct);
 				return {
-					message : `Product ${name} Created successfully`
+					message: `Product ${name} Created successfully`
 				}
 			}
 			throw new ConflictException(`Product ${data.name} already exists! Choose a different name `);
 		} catch (error) {
 			if (error instanceof ConflictException) {
 				throw error;
-			}else{
+			} else {
 				throw new InternalServerErrorException(`Error occured while adding product! - ${error.message}`);
 			}
 		}
@@ -79,21 +79,21 @@ export class ProductService {
 		}
 	}
 
-	async updateProductQuantity (entityManager : EntityManager, productId : number, purchase_qty: number) {
+	async updateProductQuantity(entityManager: EntityManager, productId: number, purchase_qty: number) {
 		try {
-			const product =  await this.productById(productId);
+			const product = await this.productById(productId);
 			if (product) {
-				let updated_product_qty = product.qty - purchase_qty; 
-				return await entityManager.update(Product, { id: productId }, { qty: updated_product_qty },); 
-			} 
-			else{
+				let updated_product_qty = product.qty - purchase_qty;
+				return await entityManager.update(Product, { id: productId }, { qty: updated_product_qty },);
+			}
+			else {
 				throw new NotFoundException(`Product ${productId} not found`);
 			}
 		} catch (error) {
 			if (error || error instanceof NotFoundException) {
 				return error;
 			}
-			else{
+			else {
 				return error;
 			}
 		}
@@ -148,24 +148,24 @@ export class ProductService {
 			relations: ['purchases', 'sales', 'users']
 		});
 	}
-	async generateReport(startDate?: Date, endDate? : Date) {
+	async generateReport(startDate?: Date, endDate?: Date) {
 		try {
-			let product:Product[] = [];
+			let product: Product[] = [];
 			const queryConditions: any = {};
 			if (startDate && endDate) {
 				queryConditions.sell_date = Between(startDate, endDate);
 			}
 
-		    product = await this.productRepository.find({
-				relations:['purchases'],
+			product = await this.productRepository.find({
+				relations: ['purchases'],
 				where: queryConditions
-		});
+			});
 
-		return product;
+			return product;
 		} catch (error) {
 			console.log(error)
 			return {
-				error:error.message
+				error: error.message
 			}
 		}
 	}

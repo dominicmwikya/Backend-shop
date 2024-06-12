@@ -26,102 +26,99 @@ export class SaleService {
 
     async sales(startDate?: Date, endDate?: Date) {
         try {
-            let queryBuilder =  this.salesRepository
-                    .createQueryBuilder('sale')
-                    .leftJoinAndSelect('sale.product', 'product')
-                    .leftJoinAndSelect('sale.purchase', 'purchases')
-                    .leftJoinAndSelect('sale.user', 'user')
-                    .orderBy('sale.sell_date', 'ASC');
+            let queryBuilder = this.salesRepository
+                .createQueryBuilder('sale')
+                .leftJoinAndSelect('sale.product', 'product')
+                .leftJoinAndSelect('sale.purchase', 'purchases')
+                .leftJoinAndSelect('sale.user', 'user')
+                .orderBy('sale.sell_date', 'ASC');
 
-                if (startDate && endDate) {
-                    const startOfDayDate = startOfDay(startDate);
-                    const endOfDayDate = endOfDay(endDate);
-                    
-                    const formattedStartDate = format(startOfDayDate, 'yyyy-MM-dd HH:mm:ss');
-                    console.log("stat", formattedStartDate)
-                    const formattedEndDate = format(endOfDayDate, 'yyyy-MM-dd HH:mm:ss');
-                    console.log("end ", formattedEndDate)
-              
-                    queryBuilder = queryBuilder.where(`DATE(sale.sell_date) BETWEEN :startDate AND :endDate`, 
-                        { 
-                         startDate: formattedStartDate,
-                         endDate: formattedEndDate
-                     });
-                }
+            if (startDate && endDate) {
+                const startOfDayDate = startOfDay(startDate);
+                const endOfDayDate = endOfDay(endDate);
+                const formattedStartDate = format(startOfDayDate, 'yyyy-MM-dd HH:mm:ss');
+                const formattedEndDate = format(endOfDayDate, 'yyyy-MM-dd HH:mm:ss');
 
-                const sales = await queryBuilder.getMany();
-        
-                const result = sales.map((sale) => ({
-                    id: sale.id,
-                    product: sale.product.name,
-                    quantity: sale.quantity,
-                    price: sale.price,
-                    total: sale.total,
-                    balance : sale.balance,
-                    amount_paid : sale.amount,
-                    sell_date: sale.sell_date,
-                    status: sale.status
-                }));
+                queryBuilder = queryBuilder.where(`DATE(sale.sell_date) BETWEEN :startDate AND :endDate`,
+                    {
+                        startDate: formattedStartDate,
+                        endDate: formattedEndDate
+                    });
+            }
 
-        return result;
+            const sales = await queryBuilder.getMany();
+            const result = sales.map((sale) => ({
+                id: sale.id,
+                product: sale.product.name,
+                quantity: sale.quantity,
+                price: sale.price,
+                total: sale.total,
+                balance: sale.balance,
+                amount_paid: sale.amount,
+                sell_date: format(sale.sell_date, 'yyyy-MM-dd HH:mm:ss'),
+                status: sale.status
+            }));
+            return result;
 
         } catch (error) {
-            return error; 
+            return error;
         }
-      }
+    }
 
-async addRecord(data: PostSaleDto) {
+    async addRecord(data: PostSaleDto) {
         const queryRunner = this.entityManager.connection.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
         const entityManager = queryRunner.manager;
         try {
-            const { purchaseId, productId, customer_name, qty, batchId, price,product_name, purchaseQty, total, balance =0, } = data;
+            const { purchaseId,
+                productId,
+                price,
+                purchaseQty,
+                total,
+                balance = 0
+            } = data;
 
-            console.log(purchaseId)
             const userId: number = data.userId;
-            const logged_user = await entityManager.findOne(UserEntity, {where : {id: userId}});
-            const purchase = await this.entityManager.findOne(Purchases, {where:{id: purchaseId}});
-            
+            const logged_user = await entityManager.findOne(UserEntity, { where: { id: userId } });
+            const purchase = await this.entityManager.findOne(Purchases, { where: { id: purchaseId } });
+
             if (!purchase) {
                 throw new NotFoundException(`Purchase is ${purchaseId} Not found`);
             }
-        
-            let stockBalance  = purchase.purchase_Qty - purchase.soldQty;
+
+            let stockBalance = purchase.purchase_Qty - purchase.soldQty;
             if (stockBalance < purchaseQty) {
                 throw new BadRequestException(`Insufficient Qty to buy ${purchaseQty}`);
             }
-        
+
             const Expected_sale_total_revenue = purchase.sale_Price * purchaseQty;
             const bs = Expected_sale_total_revenue - total;
             const receiptDTO = {
-                    grantTotal : total,
-                    totalItems : purchaseQty,
-                    balance: bs,
-                    amount : Expected_sale_total_revenue,
-                    customer_name: "customer_name"
+                grantTotal: total,
+                totalItems: purchaseQty,
+                balance: bs,
+                amount: Expected_sale_total_revenue,
+                customer_name: "customer_name"
             };
 
             const receiptNumber = await this.receiptService.createReceipt(entityManager, receiptDTO);
-            
-            const product = await this.entityManager.findOne(Product, {where:{ id : productId}})
+            const product = await this.entityManager.findOne(Product, { where: { id: productId } })
             const new_sale_data = this.salesRepository.create({
-                user : logged_user,
+                user: logged_user,
                 price: price,
-                amount : Expected_sale_total_revenue,
-                total : total,
+                amount: Expected_sale_total_revenue,
+                total: total,
                 quantity: purchaseQty,
-                balance : bs,
-                status: balance === 0 ? 'COMPLETED' :'PENDING',
-                receipt : receiptNumber,
-                product :product,
-                purchase :purchase
+                balance: bs,
+                status: balance === 0 ? 'COMPLETED' : 'PENDING',
+                receipt: receiptNumber,
+                product: product,
+                purchase: purchase
             });
             await entityManager.save(new_sale_data);
 
             const qty_to_increment_purchase_soldQty = purchase.soldQty + purchaseQty;
-            // console.log("qty change", qty_to_increment_purchase_soldQty);
-            
             const UpdatePurchaseResult = await this.purchaseService.updatePurchaseQuantity(entityManager, purchaseId, qty_to_increment_purchase_soldQty);
             if (UpdatePurchaseResult.affected !== 1) {
                 throw new InternalServerErrorException(`Failed to update purchase quantity , ${UpdatePurchaseResult.message}`);
@@ -130,9 +127,7 @@ async addRecord(data: PostSaleDto) {
             if (!product_exist) {
                 throw new NotFoundException(`Product id ${productId} not found in db`);
             }
-
-            const productUpdate =  await this.productService.updateProductQuantity(entityManager, productId, purchaseQty);
-            // console.log('product update status', productUpdate)
+            const productUpdate = await this.productService.updateProductQuantity(entityManager, productId, purchaseQty);
 
             if (productUpdate.affected !== 1) {
                 throw new InternalServerErrorException(`Failed to update purchase quantity , ${productUpdate.message}`);
@@ -140,7 +135,7 @@ async addRecord(data: PostSaleDto) {
 
             await queryRunner.commitTransaction();
             return new Result(true, `Sale Recorded added succssfully`);
-        
+
         } catch (error) {
             await queryRunner.rollbackTransaction();
             if (error instanceof BadRequestException || error instanceof NotFoundException || error instanceof InternalServerErrorException) {
@@ -150,10 +145,9 @@ async addRecord(data: PostSaleDto) {
         }
         finally {
             await queryRunner.release()
-        } 
+        }
     }
-
-//add new sale record.
+    //add new sale record.
     async createSale(data: any) {
         const queryRunner = this.entityManager.connection.createQueryRunner();
         await queryRunner.connect();
@@ -163,14 +157,13 @@ async addRecord(data: PostSaleDto) {
             const { customer_name, cart_items, grantTotal, totalItems, balance, amount } = data;
             const items = Array.isArray(cart_items) ? cart_items : [cart_items];
             const productQuantityChanges = new Map();
-
             const receiptData = {
-                grantTotal : grantTotal,
-                totalItems : totalItems,
+                grantTotal: grantTotal,
+                totalItems: totalItems,
                 balance: balance,
                 amount,
                 customer_name
-                };
+            };
             //create and obtain receipt number
             const receiptNumber = await this.receiptService.createReceipt(entityManager, receiptData);
 
@@ -200,14 +193,13 @@ async addRecord(data: PostSaleDto) {
                     receipt: receiptNumber,
                     status: item.balance === '0' ? 'COMPLETED' : 'PENDING',
                 });
+
                 await entityManager.save(newSale);
-                //update purchase qty after sale
                 const purchaseQtySold = batchExists.soldQty + item.quantity;
                 const updateResult = await this.purchaseService.updatePurchaseQuantity(entityManager, batchExists.id, purchaseQtySold);
                 if (updateResult.affected !== 1) {
                     throw new InternalServerErrorException(`Failed to update purchase quantity for batch ${batchExists.id}`);
                 }
-                //truck product qty change
                 if (!productQuantityChanges.has(item.productId)) {
                     productQuantityChanges.set(item.productId, 0);
                 }
@@ -217,21 +209,19 @@ async addRecord(data: PostSaleDto) {
             for (const [productId, quantityChange] of productQuantityChanges) {
                 const productExists = await this.productService.productById(productId);
                 const newProductQty = productExists.qty + quantityChange;
-                const updateProduct=  await this.productService.updateProductQuantity(entityManager, productExists.id, newProductQty);
+                const updateProduct = await this.productService.updateProductQuantity(entityManager, productExists.id, newProductQty);
 
                 if (updateProduct.affected !== 1) {
-                        throw new InternalServerErrorException(`"error Updating product qty ${ updateProduct.message}`)
+                    throw new InternalServerErrorException(`"error Updating product qty ${updateProduct.message}`)
                 }
-            } 
-
-
+            }
             await queryRunner.commitTransaction();
             return new Result(true, 'Sale created successfully');
 
         } catch (error) {
             await queryRunner.rollbackTransaction();
 
-            if (error instanceof BadRequestException || error instanceof InternalServerErrorException || error instanceof NotFoundException ) {
+            if (error instanceof BadRequestException || error instanceof InternalServerErrorException || error instanceof NotFoundException) {
                 return new Result(false, error.message);
             }
             return new Result(false, 'Error creating a new sale record', error.message);
@@ -248,7 +238,6 @@ async addRecord(data: PostSaleDto) {
     async findOneById(id: number) {
         return this.salesRepository.findOne({ where: { id: id } });
     }
-
     //invoicedata
     async invoiceData() {
         try {
@@ -261,12 +250,12 @@ async addRecord(data: PostSaleDto) {
     async invoiceDetails(id: string) {
         try {
             const salesData = await this.salesRepository.createQueryBuilder('sales')
-                    .leftJoinAndSelect('sales.receipt', 'receipt')
-                    .leftJoinAndSelect('sales.product', 'product')
-                    .where('receipt.id = :id', { id })
-                    .getMany();
+                .leftJoinAndSelect('sales.receipt', 'receipt')
+                .leftJoinAndSelect('sales.product', 'product')
+                .where('receipt.id = :id', { id })
+                .getMany();
 
-                return salesData;
+            return salesData;
         } catch (error) {
             throw error;
         }
@@ -275,90 +264,90 @@ async addRecord(data: PostSaleDto) {
     async GetProductSummaryData() {
         try {
             const results = await this.salesRepository.createQueryBuilder("sales")
-                        .innerJoin("sales.product", "product")
-                        .select([
-                                "product.id AS productId",
-                                "product.name AS product",
-                                "SUM(sales.total) AS total",
-                                "SUM(sales.quantity) AS quantity",
-                                "SUM(sales.balance) AS balance"
+                .innerJoin("sales.product", "product")
+                .select([
+                    "product.id AS productId",
+                    "product.name AS product",
+                    "SUM(sales.total) AS total",
+                    "SUM(sales.quantity) AS quantity",
+                    "SUM(sales.balance) AS balance"
 
-                            ])
+                ])
 
-                        .groupBy("product.id")
-                        .orderBy("product.id", 'ASC')
-                        .getRawMany();
+                .groupBy("product.id")
+                .orderBy("product.id", 'ASC')
+                .getRawMany();
 
-                            const data = results.map((result) => ({
-                                        productId: result.productId,
-                                        product: result.product,
-                                        total: parseFloat(result.total).toFixed(2),
-                                        quantity: parseFloat(result.quantity),
-                                        balance: parseFloat(result.balance).toFixed(2),
-                                        viewButton: parseFloat(result.balance) > 0 ? "View" : "Cleared"
-                                    }));
+            const data = results.map((result) => ({
+                productId: result.productId,
+                product: result.product,
+                total: parseFloat(result.total).toFixed(2),
+                quantity: parseFloat(result.quantity),
+                balance: parseFloat(result.balance).toFixed(2),
+                viewButton: parseFloat(result.balance) > 0 ? "View" : "Cleared"
+            }));
 
-                       return new Result(true, "Product summary data", data);
-          
+            return new Result(true, "Product summary data", data);
+
         } catch (error) {
-             return new Result(false, `Error occured. ${error.message}`);
+            return new Result(false, `Error occured. ${error.message}`);
         }
-     }
+    }
     async test(productId: number) {
-       try {
+        try {
             const results = await this.salesRepository.createQueryBuilder("sales")
-                        .innerJoin("sales.product", "product")
-                        .select([
-                            "product.id AS productId",
-                            "product.name AS product",
-                            "sales.total AS  total",
-                            "sales.quantity AS quantity",
-                            "sales.sell_date AS sell_date",
-                            "sales.balance AS balance"
-                        ])
+                .innerJoin("sales.product", "product")
+                .select([
+                    "product.id AS productId",
+                    "product.name AS product",
+                    "sales.total AS  total",
+                    "sales.quantity AS quantity",
+                    "sales.sell_date AS sell_date",
+                    "sales.balance AS balance"
+                ])
 
-                        .where("product.id = :productId", { productId })
-                        .andWhere("sales.balance > 0") 
-                        .orderBy("product.id", 'ASC')
-                        .getRawMany();
-                     return new Result(true, 'data', results);
-                    
-       } catch (error) {
-        return new Result(false, `Error occured. ${error.message}`);
-       }
+                .where("product.id = :productId", { productId })
+                .andWhere("sales.balance > 0")
+                .orderBy("product.id", 'ASC')
+                .getRawMany();
+            return new Result(true, 'data', results);
+
+        } catch (error) {
+            return new Result(false, `Error occured. ${error.message}`);
+        }
     }
 
-async generateReport(startDate?: Date, endDate?: Date) {
+    async generateReport(startDate?: Date, endDate?: Date) {
         try {
             let queryRunner = this.salesRepository.createQueryBuilder("sale")
                 .leftJoinAndSelect('sale.product', 'product')
                 .leftJoinAndSelect('sale.purchase', 'purchases')
                 .orderBy('sale.sell_date', 'ASC')
-            
-                    if (startDate && endDate) {
-                        queryRunner = queryRunner.where(`sale.sell_date BETWEEN :startDate AND :endDate`, {
-                            startDate: startDate,
-                            endDate: endDate
-                        });
-                    }
 
-                    const sales = await queryRunner.getMany();
+            if (startDate && endDate) {
+                queryRunner = queryRunner.where(`sale.sell_date BETWEEN :startDate AND :endDate`, {
+                    startDate: startDate,
+                    endDate: endDate
+                });
+            }
 
-                    const result = sales.map((sale) => ({
-                        id: sale.id,
-                        productName: sale.product.name,
-                        quantity: sale.quantity,
-                        price: sale.price,
-                        total: sale.total,
-                        balance: sale.balance,
-                        amount_paid: sale.amount,
-                        sell_date: sale.sell_date,
-                    }));
+            const sales = await queryRunner.getMany();
 
-                return result;
+            const result = sales.map((sale) => ({
+                id: sale.id,
+                productName: sale.product.name,
+                quantity: sale.quantity,
+                price: sale.price,
+                total: sale.total,
+                balance: sale.balance,
+                amount_paid: sale.amount,
+                sell_date: sale.sell_date,
+            }));
+
+            return result;
         } catch (error) {
-            return error.message; 
+            return error.message;
         }
-      }
+    }
 
 }
