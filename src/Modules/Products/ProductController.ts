@@ -1,14 +1,22 @@
-
-import { Body, Controller, Delete, Get, HttpException, HttpStatus, Param, Post, Put, UseGuards, Query, Req, Res } from '@nestjs/common';
+import {
+	Body,
+	Controller,
+	Delete,
+	Get,
+	InternalServerErrorException,
+	Param,
+	Post,
+	Put,
+	Query,
+	UseGuards
+} from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { Product } from 'src/Modules/Products/entities/Product.entity';
 import { AuthGuard } from '../Auth/authGuard';
 import { Roles } from '../Auth/role.decorator';
+import { Role } from '../Auth/role.enum';
 import { ProductService } from './ProductService';
 import { createProductDTO } from './dtos/createProductDTO';
-import { ApiBearerAuth } from '@nestjs/swagger';
-import { Role } from '../Auth/role.enum';
-import { Response, Request } from 'express';
-import { Result } from '../category/Response/Result';
 
 @ApiBearerAuth()
 @Controller('products')
@@ -19,15 +27,10 @@ export class ProductController {
 	@Roles(Role.Admin)
 	async getProducts() {
 		try {
-			const result = await this.productService.findAll();
-			console.log('results', result)
-			return result;
-
+			return await this.productService.findAll();
 		} catch (error) {
-			console.log("error", error);
 			throw error;
 		}
-	
 	}
 
 	@UseGuards(AuthGuard)
@@ -74,28 +77,19 @@ export class ProductController {
 	@Roles(Role.Admin)
 	async updateProduct(@Param('id') id: number, @Body() data: Product) {
 		try {
-			await this.productService.updateProduct(id, data);
-			return {
-				message: ` producted id ${id} Updated successfuly`
-			}
+			return await this.productService.updateProduct(id, data);
 		} catch (error) {
-			if (error instanceof HttpException) {
+			if (error || error instanceof InternalServerErrorException) {
 				throw error;
-			} else {
-				throw new HttpException({ error: `${error} Error occured while updating qty` },
-					HttpStatus.INTERNAL_SERVER_ERROR);
-			}
+			} 
 		}
 	}
 
 	@Get('/report')
 	async generateReport(@Query('startDate') startDate: Date, @Query('endDate') endDate: Date) {
 		try {
-			let result = await this.productService.generateReport(startDate, endDate);
-			console.log(result)
-			return result;
+			return await this.productService.generateReport(startDate, endDate);
 		} catch (error) {
-			console.log(error)
 			return error
 		}
 	}

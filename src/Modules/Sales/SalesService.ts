@@ -1,4 +1,9 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, InternalServerErrorException, NotFoundException } from "@nestjs/common";
+import {
+    BadRequestException,
+    Injectable,
+    InternalServerErrorException,
+    NotFoundException
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { endOfDay, format, startOfDay, subDays } from 'date-fns';
 import { Sale } from "src/Modules/Sales/entities/sales.entity";
@@ -13,6 +18,7 @@ import { UserEntity } from "../Users/entities/User.entity";
 import { Purchases } from "../Purchases/entities/Purchases.Entity";
 import { Product } from "../Products/entities/Product.entity";
 import { Result } from "../category/Response/Result";
+import { error } from "console";
 @Injectable()
 export class SaleService {
     constructor(@InjectRepository(Sale)
@@ -21,11 +27,20 @@ export class SaleService {
         private purchaseService: PurchaseService,
         private readonly entityManager: EntityManager,
         private receiptService: ReceiptService,
-
     ) { }
+
+    private CreateResult(success: boolean, message: string, data: {}): Result {
+        return new Result(success, message, data);
+    }
 
     async sales(startDate?: Date, endDate?: Date) {
         try {
+            const dateResult = this.validateInputDates(startDate, endDate);
+
+            if (dateResult.error) {
+                return this.CreateResult(false, dateResult.error, {});
+            }
+
             let queryBuilder = this.salesRepository
                 .createQueryBuilder('sale')
                 .leftJoinAndSelect('sale.product', 'product')
@@ -39,7 +54,8 @@ export class SaleService {
                 const formattedStartDate = format(startOfDayDate, 'yyyy-MM-dd HH:mm:ss');
                 const formattedEndDate = format(endOfDayDate, 'yyyy-MM-dd HH:mm:ss');
 
-                queryBuilder = queryBuilder.where(`DATE(sale.sell_date) BETWEEN :startDate AND :endDate`,
+                queryBuilder = queryBuilder.where(
+                    `DATE(sale.sell_date) BETWEEN :startDate AND :endDate`,
                     {
                         startDate: formattedStartDate,
                         endDate: formattedEndDate
@@ -58,11 +74,25 @@ export class SaleService {
                 sell_date: format(sale.sell_date, 'yyyy-MM-dd HH:mm:ss'),
                 status: sale.status
             }));
-            return result;
+
+            return this.CreateResult(true, `Data fetched successfully`, result);
 
         } catch (error) {
-            return error;
+            return this.CreateResult(false, error.message, {});
         }
+    }
+
+    private validateInputDates(startDate?: Date, endDate?: Date) {
+        if (startDate && endDate) {
+            if (startDate > endDate) {
+                return { error: 'Start date cannot be after end date.' };
+            }
+        } else if (startDate && !endDate) {
+            return { error: 'End date is required if start date is provided.' };
+        } else if (!startDate && endDate) {
+            return { error: 'Start date is required if end date is provided.' };
+        }
+        return {};
     }
 
     async addRecord(data: PostSaleDto) {
@@ -208,7 +238,8 @@ export class SaleService {
             //updateproduct qty
             for (const [productId, quantityChange] of productQuantityChanges) {
                 const productExists = await this.productService.productById(productId);
-                const newProductQty = productExists.qty + quantityChange;
+                const newProductQty = productExists.qty - quantityChange;
+                console.log("roductExists.qty" + productExists.qty + "Qty Change" + quantityChange + "new product qty" + newProductQty);
                 const updateProduct = await this.productService.updateProductQuantity(entityManager, productExists.id, newProductQty);
 
                 if (updateProduct.affected !== 1) {
@@ -293,6 +324,7 @@ export class SaleService {
             return new Result(false, `Error occured. ${error.message}`);
         }
     }
+
     async test(productId: number) {
         try {
             const results = await this.salesRepository.createQueryBuilder("sales")

@@ -1,16 +1,17 @@
-import { BadRequestException, Body, Controller, Get, HttpException, HttpStatus, InternalServerErrorException, Post, Query, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, HttpException, HttpStatus, InternalServerErrorException, Post, Query, Res, UsePipes } from '@nestjs/common';
 import { CreateSaleDto } from './dtos/CreateSaleDTO';
 import { SaleService } from './SalesService';
 import { PostSaleDto } from './dtos/PostSaleDto';
 import { query } from 'express';
 import { Result } from '../category/Response/Result';
+import { Validate } from 'class-validator';
 @Controller('sales')
 export class SalesController {
     constructor(
         private salesService: SaleService,
     ) { }
 
-    @Get('/test') 
+    @Get('/test')
     async getAllSales() {
         try {
             return await this.salesService.sales();
@@ -20,13 +21,9 @@ export class SalesController {
     }
 
     @Post('/test')
-    async addRecord(@Body() sale_data : PostSaleDto) {
+    async addRecord(@Body() sale_data: PostSaleDto) {
         try {
-            const { productId, qty, purchaseQty}  = sale_data;
 
-            if (purchaseQty > qty) {
-                throw new BadRequestException(`insufficient Qty for  ${productId} pls input less qty value`);
-            }
             return await this.salesService.addRecord(sale_data);
         } catch (error) {
             if (error instanceof BadRequestException) {
@@ -35,44 +32,97 @@ export class SalesController {
             return error;
         }
     }
-       
+
+    private validateSaleInputData(data: CreateSaleDto) {
+        try {
+            const { cart_items, customer_name, grantTotal, totalItems, balance, amount } = data;
+
+            if (grantTotal <= 0) {
+                return { error: 'Invalid grantTotal' };
+            }
+
+            if (amount <= 0) {
+                return { error: 'Invalid amount' };
+            }
+
+            if (balance < 0) {
+                return { error: `Balance must not be >= 0` };
+            }
+
+            if (totalItems <= 0) {
+                return { error: 'Total Items must >= 1' }
+            }
+            for (const item of cart_items) {
+                if (item.quantity <= 0) {
+                    return { error: `Invalid quantity for product ID ${item.productId}` };
+                }
+                if (item.price <= 0) {
+                    return { error: `Invalid price for product ID ${item.productId}` };
+                }
+                if (item.total !== item.price * item.quantity) {
+                    return { error: `Total does not match price * quantity for product ID ${item.productId}` };
+                }
+                if (!customer_name) {
+                    return { error: 'Customer name is required!!' };
+                }
+
+                if (balance < 0) {
+                    return { error: `Balance must not be >= 0` };
+                }
+                return null;
+            }
+        } catch (error) {
+            if (error || error instanceof BadRequestException) {
+                return error;
+            }
+        }
+    }
+
     @Post('/create')
     async createSale(@Body() data: CreateSaleDto) {
         try {
-            return  await this.salesService.createSale(data);
+            const validateInput = this.validateSaleInputData(data);
+
+            if (validateInput) {
+                return new Result(false, validateInput.error);
+            }
+
+            return await this.salesService.createSale(data);
         } catch (error) {
-           
-             if (error instanceof InternalServerErrorException) {
+
+            if (error instanceof InternalServerErrorException) {
                 return error;
-             }
-             else{
+            }
+            else {
                 return error
-             }
+            }
         }
     }
     //All daily sales
-        @Get()
-         async fetchSales(@Query('startDate') startDate?: Date, @Query('endDate') endDate?: Date) {
-            try {
-                let sales =  await this.salesService.sales(startDate, endDate);
-                return new Result(true, 'Sales Records', sales);
-            }
-            catch (error) {
-              return new Result(false, `Error fetching daily sales ${error}`);
-            }
+    @Get()
+    async fetchSales(@Query('startDate') startDate?: Date, @Query('endDate') endDate?: Date) {
+        try {
+            let sales = await this.salesService.sales(startDate, endDate);
+            console.log("sales result", sales)
+            return sales;
         }
+        catch (error) {
+            console.log("error", error)
+            return error
+        }
+    }
 
     @Get('/product/records')
     async getProductRecords(@Query('id') id: number) {
-       try {
-         return  await this.salesService.test(id);
-      
-       } catch (error) {
-          return error;
-       }
+        try {
+            return await this.salesService.test(id);
+
+        } catch (error) {
+            return error;
+        }
     }
 
-    @Get('/product/summary') 
+    @Get('/product/summary')
     async GetproductSummary() {
         try {
             return await this.salesService.GetProductSummaryData();
@@ -80,6 +130,7 @@ export class SalesController {
             return error;
         }
     }
+
     @Get('/invoices')
     async fetchInvoiceData() {
         try {
@@ -89,25 +140,27 @@ export class SalesController {
             return error
         }
     }
+
     @Get('/invoiceDetails')
     async fetchInvoiceDetails(@Query('invoiceId') invoiceId: string) {
         try {
             const result = await this.salesService.invoiceDetails(invoiceId);
-          
+
             return result;
         } catch (error) {
             return error
         }
     }
+
     @Get('/report')
     async generateReport(@Query('startDate') startDate?: Date, @Query('endDate') endDate?: Date) {
         try {
-            const result =  await this.salesService.generateReport(startDate, endDate);
+            const result = await this.salesService.generateReport(startDate, endDate);
             console.log(result);
             const jsonData = JSON.stringify(result);
             return jsonData;
         } catch (error) {
-            return { error , success: false }
+            return { error, success: false }
         }
     }
 }
