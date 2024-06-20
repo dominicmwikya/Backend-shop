@@ -19,12 +19,8 @@ export class PurchaseController {
 	@Get('/report')
 	async generateReport(@Query('startDate') startDate: Date, @Query('endDate') endDate: Date) {
 		try {
-			let result = await this.purchaseService.generateReport(startDate, endDate);
-			console.log("purchases", result)
-
-			return result;
+			return await this.purchaseService.generateReport(startDate, endDate);
 		} catch (error) {
-			console.log(error)
 			return error
 		}
 	}
@@ -60,46 +56,21 @@ export class PurchaseController {
 	@Put('/update/:id')
 	async updatePurchase(@Param('id') id: number, @Body() data: UpdatePurchaseDto) {
 		try {
-			return await this.purchaseService.updatePurchase(id, data);
-		} catch (error) {
-			return error;
-		}
-	}
-	@Delete('/delete/:id')
-	async deletePurchase(@Param('id') id: number) {
-		try {
-			const result = await this.purchaseService.deletePurchase(id);
+			console.log("id", id)
+			console.log("data", data)
+			const result = await this.purchaseService.updatePurchase(id, data);
 			return result;
 		} catch (error) {
 			return error;
 		}
 	}
 
-	@Put('/delete-multiple')
-	async deleteMultiplePurchases(@Body() body: { ids: number[] | number }) {
+	@Delete('/delete/:id')
+	async deletePurchase(@Param('id') id: number) {
 		try {
-			let response = [];
-			let errorIds = [];
-			let purchaseIds = Array.isArray(body.ids) ? body.ids : [body.ids];
-			await Promise.all(
-				purchaseIds.map(async id => {
-					const result = await this.purchaseService.testDeletePurchase(id);
-					response.push(result);
-					if (result.error) {
-						errorIds.push(id); // Track the IDs where errors occurred
-					}
-					return result;
-				}));
-
-			if (errorIds.length > 0) {
-				return { error: 'Deletion failed for IDs: ' + errorIds.join(', ') };
-			} else {
-				return { message: 'All deletions were successful.' };
-			}
+			return await this.purchaseService.deletePurchase(id);
 		} catch (error) {
-			return {
-				error: error
-			}
+			return error;
 		}
 	}
 
