@@ -1,7 +1,5 @@
 import {
 	ConflictException,
-	HttpException,
-	HttpStatus,
 	Injectable,
 	InternalServerErrorException,
 	NotFoundException
@@ -107,6 +105,9 @@ export class ProductService {
 		}
 	}
 
+	 async productExists(id:number) {
+		return await this.productRepository.findOne({ where:{id: id}});
+	}
 	async productById(id: number) {
 		const product = await this.productRepository.findOne({ where: { id: id } });
 		if (!product) {

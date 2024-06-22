@@ -362,9 +362,7 @@ export class SaleService {
                     endDate: endDate
                 });
             }
-
             const sales = await queryRunner.getMany();
-
             const result = sales.map((sale) => ({
                 id: sale.id,
                 productName: sale.product.name,
@@ -375,7 +373,6 @@ export class SaleService {
                 amount_paid: sale.amount,
                 sell_date: sale.sell_date,
             }));
-
             return result;
         } catch (error) {
             return error.message;

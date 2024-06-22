@@ -21,10 +21,9 @@ export class SalesController {
     }
 
     @Post('/test')
-    async addRecord(@Body() sale_data: PostSaleDto) {
+    async addRecord(@Body() saleData: PostSaleDto) {
         try {
-
-            return await this.salesService.addRecord(sale_data);
+            return await this.salesService.addRecord(saleData);
         } catch (error) {
             if (error instanceof BadRequestException) {
                 return new Result(false, `Error: ${error.message}`);
@@ -86,10 +85,8 @@ export class SalesController {
             if (validateInput) {
                 return new Result(false, validateInput.error);
             }
-
             return await this.salesService.createSale(data);
         } catch (error) {
-
             if (error instanceof InternalServerErrorException) {
                 return error;
             }
@@ -107,7 +104,6 @@ export class SalesController {
             return sales;
         }
         catch (error) {
-            console.log("error", error)
             return error
         }
     }
@@ -116,7 +112,6 @@ export class SalesController {
     async getProductRecords(@Query('id') id: number) {
         try {
             return await this.salesService.test(id);
-
         } catch (error) {
             return error;
         }

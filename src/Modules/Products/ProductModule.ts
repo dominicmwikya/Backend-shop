@@ -9,10 +9,29 @@ import { ProductController } from './ProductController';
 import { ProductService } from "./ProductService";
 import { UserEntity } from "../Users/entities/User.entity";
 import { JwtService } from "@nestjs/jwt";
+import { UsersModule } from "../Users/UsersModule";
+import { UsersService } from "../Users/UserService";
+import { LoginEntity } from "../Users/entities/Login.Entity";
 @Module({
-    imports: [TypeOrmModule.forFeature([Product, Purchases, BatchNumbers, UserEntity]), BatchModule],
+    imports: [
+        TypeOrmModule.forFeature(
+            [
+            Product,
+            Purchases, 
+            BatchNumbers,
+            UserEntity,
+            LoginEntity
+        ]),
+         BatchModule,
+         UsersModule
+        ],
     controllers: [ProductController],
-    providers: [ProductService, PurchaseService, JwtService],
+    providers: [
+        ProductService, 
+        PurchaseService, 
+        JwtService,
+        UsersService
+    ],
     exports: [ProductService]
 })
 export class ProductModule { }

@@ -32,7 +32,6 @@ export class ProductController {
 			throw error;
 		}
 	}
-
 	@UseGuards(AuthGuard)
 	@Post('/create')
 	@Roles(Role.Admin)

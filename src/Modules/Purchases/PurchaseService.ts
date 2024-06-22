@@ -3,76 +3,71 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Product } from "src/Modules/Products/entities/Product.entity";
 import { Purchases } from "src/Modules/Purchases/entities/Purchases.Entity";
 import { UserEntity } from "src/Modules/Users/entities/User.entity";
-import { Between, EntityManager, ILike, Repository } from "typeorm";
+import { Between, EntityManager, ILike, QueryRunner, Repository } from "typeorm";
 import { BatchService } from "../Batchs/BatchService";
 import { UpdatePurchaseDto } from './dtos/UpdatePurchaseDto';
 import { purchasedto } from "./dtos/purchase";
 import { PurchaseDto } from "./dtos/purchaseDto";
 import { UsersService } from "../Users/UserService";
 import { Result } from "../category/Response/Result";
+import { ProductService } from "../Products/ProductService";
 @Injectable()
 export class PurchaseService {
+	private queryRunner: QueryRunner;
 	constructor(@InjectRepository(Purchases)
-	private purchaseRepository: Repository<Purchases>,
+		private purchaseRepository: Repository<Purchases>,
 		private batchService: BatchService,
+		private userService: UsersService,
 		private readonly entityManager: EntityManager,
 		@InjectRepository(Product) private productRepository: Repository<Product>,
 		@InjectRepository(UserEntity) private userRepository: Repository<UserEntity>,
+	) { this.queryRunner= this.entityManager.connection.createQueryRunner(); }
 
-	) { }
-
-	async addRecord(body: purchasedto[]) {
+	async addPurchaseRecord(data: purchasedto) {
 		try {
-			const queryRunner = this.entityManager.connection.createQueryRunner();
-			await queryRunner.connect();
-			await queryRunner.startTransaction();
-			const entityManager = queryRunner.manager;
-			const purchaseData = body;
-			const savedPurchases: Purchases[] = [];
+			await this.queryRunner.connect();
+			await this.queryRunner.startTransaction();
+			const { userId, productId, quantity, sprice, price, supplierId} = data;
+			const productExistsResult = await this.productRepository.findOne({ where :{ id : productId}});
 
-			for (const purchase of purchaseData) {
-				const p_id = purchase.productId;
-				const product = await this.productRepository.findOne({ where: { id: p_id } });
-				if (!product) {
-					throw new NotFoundException(`Product id ${purchase.productId} Not found`);
-				}
-				const user_id = purchase.userId
-				// const user = await this.userRepository.findOne({where :{id : user_id}});
-
-				const dataDto: PurchaseDto = {
-					price: purchase.price,
-					quantity: purchase.quantity,
-					sprice: purchase.sprice
-				};
-				const batchNumber = await this.batchService.generateBatchNumber();
-				const addresult = this.purchaseRepository.create({
-					product,
-					batchcode: batchNumber,
-					purchase_Price: dataDto.price,
-					purchase_Qty: dataDto.quantity,
-					sale_Price: dataDto.sprice,
-					purchase_Total: Number.parseInt(dataDto.price.toString()) *
-						Number.parseInt(dataDto.quantity.toString()),
-				});
-
-				const response: Purchases = await this.purchaseRepository.save(addresult);
-				product.qty += Number.parseInt(dataDto.quantity.toString());
-
-				await this.productRepository.save(product);
-				await queryRunner.commitTransaction();
-				savedPurchases.push(response);
+			if (!productExistsResult) {
+				throw new NotFoundException(` Invalid product id ${productId} Not Found`);
 			}
-			return savedPurchases;
+			const userExists = await this.userService.findUserId(userId);
+			if (!userExists) {
+				throw new NotFoundException(`User id ${userId} is invalid`);
+			}
+			const generatedBatchNumber = await this.batchService.generateBatchNumber();
+			if (!generatedBatchNumber) {
+				throw new InternalServerErrorException(`Error occured while generating purchase batch Number! Try again`);
+			}
+			const priceToString =Number.parseInt(price.toString());
+			const quantityToString = Number.parseInt(quantity.toString());
+			const purchaseTotal = priceToString * quantityToString;
+
+			const purchaseObj = this.purchaseRepository.create({
+				batchcode : generatedBatchNumber,
+				purchase_Price : price,
+				purchase_Qty : quantity,
+				sale_Price : sprice,
+				purchase_Total : purchaseTotal,
+				product: productExistsResult,
+				user: userExists,
+			});
+
+			await this.purchaseRepository.save(purchaseObj);
+
+			productExistsResult.qty += quantityToString;
+
+			await this.productRepository.save(productExistsResult);
+			await this.queryRunner.commitTransaction();
+			return this.createResult(true, `Purchase Record has beed Created!`);
 
 		} catch (error) {
-			if (error instanceof NotFoundException) {
-				return new Result(false, `Error : ${error.message}`)
-			}
-			else {
-				return new Result(false, `Error : ${error.message}`)
+			if (error || error instanceof NotFoundException || error instanceof InternalServerErrorException) {
+				return this.createResult(false, error.message);
 			}
 		}
-
 	}
 
 	async filterByBatch(searchParam: string) {
@@ -146,23 +141,22 @@ export class PurchaseService {
 				.leftJoin('purchase.product', 'product')
 				.getMany();
 
-			const records = purchases.map((purchase) => ({
-				id: purchase.id,
-				batchcode: purchase.batchcode,
-				product: purchase.product.name,
-				productId: purchase.product.id,
-				purchaseId: purchase.id,
-				productQty: purchase.product.qty,
-				quantity: purchase.purchase_Qty,
-				total: purchase.purchase_Total,
-				availableQty: (purchase.purchase_Qty - purchase.soldQty),
-				salePrice: purchase.sale_Price,
-				dateCreated: purchase.createdAt,
-				userId: purchase.user
+			const records = purchases.map((item) => ({
+				id: item.id,
+				batchcode: item.batchcode,
+				product: item.product?.name,
+				productId: item.product?.id,
+				productQty: item.product?.qty,
+				quantity: item.purchase_Qty,
+				total: item.purchase_Total,
+				availableQty: (item.purchase_Qty - item.soldQty),
+				salePrice: item.sale_Price,
+				dateCreated: item.createdAt,
+				userId: item.user
 			}));
 			return new Result(true, 'Purchases Data: ', records);
 		} catch (error) {
-			return this.createResult(false, `failed to fetch purchase data`);
+			return this.createResult(false, `failed to fetch purchase data ${error.message}`);
 		}
 	}
 
