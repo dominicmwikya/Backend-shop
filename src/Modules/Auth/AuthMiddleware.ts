@@ -17,11 +17,9 @@ export class AuthMiddleware implements NestMiddleware {
             const payload = await this.jwtService.verifyAsync(token, {
                 secret: process.env.SECRET_KEY_API_KEY,
             });
-
-
             req['user'] = payload;
             req['token'] = token;
-            next();
+           
         } catch (error) {
             if (error.name === 'TokenExpiredError') {
                 throw new UnauthorizedException(`Your session has expired! please login ${error.message}`);
@@ -30,5 +28,6 @@ export class AuthMiddleware implements NestMiddleware {
             }
             return res.status(401).json(new Result(false, 'Invalid Token'));
         }
+        next();
     }
 }

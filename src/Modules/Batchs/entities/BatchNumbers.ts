@@ -1,8 +1,15 @@
-import { BaseEntity, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { BaseEntity, Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 
 @Entity()
 export class BatchNumbers extends BaseEntity {
     @PrimaryGeneratedColumn()
     id!: number;
+
+
+    // @Column()
+    // yearMonth: string;
+    
+    // @Column() 
+    // sequenceNumber: number;
 }

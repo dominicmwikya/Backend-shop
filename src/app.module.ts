@@ -1,35 +1,38 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { ProductModule } from './Modules/Products/ProductModule';
-import { AuthModule } from './Modules/Auth/AuthModule';
-import { UsersModule } from './Modules/Users/UsersModule';
-import { PurchaseModule } from './Modules/Purchases/PurchaseModule';
-import { BatchModule } from './Modules/Batchs/BatchModule';
-import { SalesModule } from './Modules/Sales/SalesModule';
-import { SupplierModule } from './Modules/Suppliers/SupplierModule';
-import { ReceiptModule } from './Modules/Receipts/ReceiptModule';
-import { EmailModule } from './Modules/Email/Email.Module';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UserEntity } from './Modules/Users/entities/User.entity';
-import { Profile } from './Modules/Profile/entities/Profile.entity';
-import { Product } from './Modules/Products/entities/Product.entity';
-import { Purchases } from './Modules/Purchases/entities/Purchases.Entity';
-import { Sale } from './Modules/Sales/entities/sales.entity';
-import { Role } from './Modules/Roles/entities/Role.entity';
-import { Supplier } from './Modules/Suppliers/entities/Supplier.Entity';
-import { BatchNumbers } from './Modules/Batchs/entities/BatchNumbers';
-import { Receipt } from './Modules/Receipts/entities/Receipt.entity';
-import { Email } from './Modules/Email/entities/Email';
-import { CategoryModule } from './Modules/category/category.module';
-import { CategoryEntity } from './Modules/category/CategoryEntity';
-import { LoginEntity } from './Modules/Users/entities/Login.Entity';
-import cookieParser from 'cookie-parser';
+import { Profile } from 'src//Entities/Profile.entity';
+import { BatchEntity } from 'src/Entities/BatchEntity';
+import { CategoryEntity } from 'src/Entities/CategoryEntity';
+import { Email } from 'src/Entities/Email';
+import { LoginEntity } from 'src/Entities/Login.Entity';
+import { PasswordHistory } from 'src/Entities/PasswordHistory';
+import { Product } from 'src/Entities/Product.entity';
+import { Purchases } from 'src/Entities/Purchases.Entity';
+import { Receipt } from 'src/Entities/Receipt.entity';
+import { Role } from 'src/Entities/Role.entity';
+import { Supplier } from 'src/Entities/Supplier.Entity';
+import { UserEntity } from 'src/Entities/User.entity';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { Sale } from './Entities/sales.entity';
 import { AuthMiddleware } from './Modules/Auth/AuthMiddleware';
-
+import { AuthModule } from './Modules/Auth/AuthModule';
+import { BatchModule } from './Modules/Batchs/BatchModule';
+import { BatchNumbers } from './Modules/Batchs/entities/BatchNumbers';
+import { CategoryModule } from './Modules/category/category.module';
+import { EmailModule } from './Modules/Email/Email.Module';
+import { ProductModule } from './Modules/Products/ProductModule';
+import { PurchaseModule } from './Modules/Purchases/PurchaseModule';
+import { ReceiptModule } from './Modules/Receipts/ReceiptModule';
+import { SalesModule } from './Modules/Sales/SalesModule';
+import { SupplierModule } from './Modules/Suppliers/SupplierModule';
+import { UsersModule } from './Modules/Users/UsersModule';
+import { LoggerMiddleware } from './Middlewares/LoggerMiddeware';
+import { UserLog } from './Entities/Userlogs';
 @Module({
   imports: [
+    TypeOrmModule.forFeature([UserLog]),
     ProductModule,
     AuthModule,
     UsersModule,
@@ -45,28 +48,36 @@ import { AuthMiddleware } from './Modules/Auth/AuthMiddleware';
     }),
     TypeOrmModule.forRootAsync({
       useFactory: () => {
-         return {
+        return {
           type: 'mysql',
           host: process.env.DB_HOST,
           port: parseInt(process.env.DB_PORT) || 3306,
           username: process.env.DB_USER,
           password: process.env.DB_PASSWORD,
           database: process.env.DB_NAME,
-          entities: [UserEntity, Profile, Product,Purchases, Sale, Role, Supplier, BatchNumbers, Receipt, Email, CategoryEntity, LoginEntity],
+          entities: [UserEntity, Profile, Product, Purchases, Sale, Role, Supplier, BatchNumbers, Receipt, Email, CategoryEntity, LoginEntity, PasswordHistory, BatchEntity, UserLog],
           synchronize: true,
-         }
+        }
       }
     })
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule 
-implements NestModule {
-    configure(consumer: MiddlewareConsumer) {
-        consumer.apply(AuthMiddleware)
-        .forRoutes({path:'users/token-verification', method: RequestMethod.GET})
-    }
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(AuthMiddleware).exclude(
+      { path: '/users/login', method: RequestMethod.POST },
+      { path: '/users/logout', method: RequestMethod.POST },
+      { path: 'users/logs', method: RequestMethod.ALL }
+      
+    ).forRoutes('*');
+
+    consumer.apply(LoggerMiddleware).exclude(
+      { path: '/users/login', method: RequestMethod.POST },
+      { path: 'users/token-verification', method: RequestMethod.POST },
+      { path: 'users/logs', method: RequestMethod.ALL },
+      { path: '/users/logout', method: RequestMethod.POST },
+    ) .forRoutes('*');
+  }
 }
-
-

@@ -4,7 +4,7 @@ import { EmailController } from "./Email.Controller";
 
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { EmailService } from "./email.service";
-import { Email } from "./entities/Email";
+import { Email } from "../../Entities/Email";
 @Module({
     imports: [
         TypeOrmModule.forFeature([Email]),

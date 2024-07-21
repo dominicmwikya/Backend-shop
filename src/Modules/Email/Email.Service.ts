@@ -2,9 +2,9 @@ import { MailerService } from "@nestjs-modules/mailer";
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { CreateUserDto } from "../Users/dtos/CreateUserDto";
-import { CreateEmailDto } from "./dtos/CreateEmaillDto";
-import { Email } from "./entities/Email";
+import { CreateUserDto } from "../../Dtos/CreateUserDto";
+import { CreateEmailDto } from "../../Dtos/CreateEmaillDto";
+import { Email } from "../../Entities/Email";
 
 @Injectable()
 export class EmailService {

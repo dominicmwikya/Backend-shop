@@ -11,12 +11,13 @@ import {
 	UseGuards
 } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
-import { Product } from 'src/Modules/Products/entities/Product.entity';
-import { AuthGuard } from '../Auth/authGuard';
-import { Roles } from '../Auth/role.decorator';
-import { Role } from '../Auth/role.enum';
+import { Product } from 'src/Entities/Product.entity';
+import { AuthGuard } from '../../Guards/authGuard';
+import { Roles } from '../../helpers/role.decorator';
+import { Role } from '../../Enums/role.enum';
 import { ProductService } from './ProductService';
-import { createProductDTO } from './dtos/createProductDTO';
+import { createProductDTO } from '../../Dtos/createProductDTO';
+import { Result } from '../category/Response/Result';
 
 @ApiBearerAuth()
 @Controller('products')
@@ -27,7 +28,7 @@ export class ProductController {
 	@Roles(Role.Admin)
 	async getProducts() {
 		try {
-			return await this.productService.findAll();
+			return await this.productService.getAllProductsWithRelations();
 		} catch (error) {
 			throw error;
 		}
@@ -36,13 +37,33 @@ export class ProductController {
 	@Post('/create')
 	@Roles(Role.Admin)
 	async create(@Body() product: createProductDTO) {
+		const validate = this.validateproductInput(product);
+		// if (validate.error) {
+        //     return new Result(false, validate.error);
+		// }
+
 		try {
 			return await this.productService.createProduct(product);
 		} catch (error) {
 			throw error;
 		}
 	}
+private validateproductInput(data: createProductDTO) {
+	const { name,sku , description} = data;
+	const strimName = name.trim().toLowerCase();
+	// const models = model.trim().toLowerCase();
+	const skus = sku.trim().toLowerCase();
+	const des = description.toLowerCase();
 
+	if (!strimName  || !skus) {
+		return { error :` fill all fields`};
+	}
+
+	data.name = strimName;
+	// data.model = models;
+	data.sku = skus;
+	data.description = des;
+}
 	@Delete('/remove')
 	@Roles(Role.Admin)
 	async productDelete(@Body() body: { ids: number[] | number }) {

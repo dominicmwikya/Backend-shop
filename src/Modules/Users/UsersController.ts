@@ -1,16 +1,18 @@
-import { BadRequestException, Body, ConflictException, Controller, Delete, Get, InternalServerErrorException, NotFoundException, Param, Post, Put, Req, Res, UnauthorizedException } from "@nestjs/common";
-import { UsersService } from "./UserService";
-import { CreateUserDto } from './dtos/CreateUserDto';
-import { UserEntity } from "./entities/User.entity";
-import { EmailValidation } from "../Utils/emailValidation";
-import { PasswordValidator } from "../Utils/passwordValidator";
-import { signInDTO } from "../Auth/siginInDTO";
-import { SuccessResult } from "../Utils/SuccessResult";
-import { UserChangePassDTO } from "./dtos/UserChangePassDTO";
-import { JSONResponse, Result } from "../category/Response/Result";
-import { AuthService } from "../Auth/AuthService";
+import { BadRequestException, Body, Controller, Delete, Get, InternalServerErrorException, NotFoundException, Param, Post, Put, Req, Res } from "@nestjs/common";
 import { Request, Response } from "express";
-import { FindOneParams } from "./dtos/FindOneParams";
+import { UserEntity } from "src/Entities/User.entity";
+import { CreateUserDto } from '../../Dtos/CreateUserDto';
+import { FindOneParams } from "../../Dtos/FindOneParams";
+import { UserChangePassDTO } from "../../Dtos/UserChangePassDTO";
+import { signInDTO } from "../../Dtos/siginInDTO";
+import { SuccessResult } from "../../helpers/SuccessResult";
+import { UserResult } from "../../helpers/UserResult";
+import { EmailValidation } from "../../helpers/emailValidation";
+import { PasswordValidator } from "../../helpers/passwordValidator";
+import { AuthService } from "../Auth/AuthService";
+import { Result } from "../category/Response/Result";
+import { UsersService } from "./UserService";
+import { UserLog } from "src/Entities/Userlogs";
 @Controller('users')
 export class UsersController {
 	constructor(private userService: UsersService,
@@ -19,108 +21,125 @@ export class UsersController {
 		private readonly authService: AuthService
 	) { }
 
+	private Response(success: boolean, message: string, data?: any, data1?: any) {
+		return new UserResult(success, message, data, data1);
+	}
 	@Get('/token-verification')
 	protectedRoute(@Req() req: Request, @Res() res: Response) {
-		const user = req['user'];
+		const user = req['user']
 		const token = req.cookies['access-token'];
-
-		return res.status(200).json({ 'success': true, token: token, user: user });
+		return res.status(200).json({ success: true, token: token, user: user });
 	}
 
 	@Post('/logout')
 	async logout(@Req() req: Request, @Res() res: Response) {
-		res.clearCookie('access-token', {
-			httpOnly: true,
-			sameSite: 'none',
-			secure: true,
-		});
-		return res.status(200).json(new Result(true, 'User logged out'));
+		const token = req.cookies['access-token'];
+		try {
+			if (token) {
+				try {
+					const authResult = await this.authService.verifyJwtToken(token);
+					const userId = authResult.id
+					await this.userService.handleLogOut(userId);
+				} catch (error) {
+					console.log('Token verification failed:', error.message);
+					return res.status(401).json(new Result(false, 'Invalid token, logged out'));
+				}
+			}
+
+		} catch (error) {
+			console.error('Logout Error:', error.message);
+			return res.status(500).json(new Result(false, `Logout Error! ${error.message}`));
+		}
+		finally {
+			res.clearCookie('access-token', {
+				httpOnly: true,
+				sameSite: 'none',
+				secure: true,
+				expires: new Date(0)
+			});
+			return res.status(200).json(new Result(true, 'User logged out successfully'));
+		}
+
 	}
+
+
 	@Post('/create')
 	async createUser(@Body() user: CreateUserDto) {
 		const { email, password } = user;
+		const passvalidationErrors = await this.passwordValidator.validatePassword(password);
 
-		try {
-			await this.passwordValidator.validatePassword(password);
-		} catch (error) {
-			throw error;
+		if (passvalidationErrors) {
+			return new Result(false, `${passvalidationErrors}`);
 		}
-
 		const validemail = await this.emailValidator.validateEmail(email);
 		if (!validemail) {
-			return {
-				error: `Invalid email string ${email} please use a valid email value`
-			}
+			return new Result(false, `Invalid email string ${email} please use a valid email value`);
 		}
-
 		try {
-			await this.userService.createUser(user);
-			return {
-				message: `User ${user.id} created successfully. Check email ${user.email} for account activation`
-			};
+			return await this.userService.createUser(user);
 		} catch (error) {
-			throw error;
+			return new Result(false, `${error.message}`);
 		}
 	}
 
 	@Post('/login')
 	async signIn(@Body() data: signInDTO, @Res({ passthrough: true }) res: Response) {
+		const { email, password } = data;
+		if (!email || !password) {
+			return new Result(false, `Email and password fields reqquired`);
+		}
 		try {
 			const response = await this.userService.Signin(data.email, data.password);
-			if (!response) {
-				return res.status(500).json({ success: false, message: 'Sign-in failed', error: 'Empty response' });
+			if (!response.success) {
+				return response;
 			}
-
-			res.cookie('access-token', response.accessToken, {
-				httpOnly: true,
-				sameSite: 'none',
-				secure: true,
-			});
-
-			return { success: true, message: 'OKAY', user: response.userdata, token: response.accessToken }
+			else {
+				res.cookie('access-token', response.data, {
+					httpOnly: true,
+					sameSite: 'none',
+					secure: true,
+					maxAge: 60 * 60 * 1000
+				});
+				return response;
+			}
 		} catch (error) {
-			return { sucess: false, message: error };
+			return this.Response(false, `${error.message}`);
 		}
 	}
-
 	//Get all users
 	@Get()
-	async getUsers() {
+	async getUsers(): Promise<Result> {
 		try {
-			const users: any = await this.userService.findAll();
-			return {
-				data: users
-			}
+			const users = await this.userService.findAll();
+			return new Result(true, ``, users)
 		} catch (error) {
-			return {
-				error: "Failed to fetch users"
-			}
+			return new Result(false, `${error.message}`);
 		}
 	}
 
 	@Delete('/:id')
 	async deleteUser(@Param() param: FindOneParams) {
 		try {
-			const { id } = param
-			await this.userService.deleteUser(id);
-			return { message: 'User deleted successfully' };
+			const { id } = param;
+			const idNumber = +id;
+			await this.userService.removeUser(idNumber);
+			return this.Response(true, `User record successfully deleted from the system!`);
 		} catch (error) {
-			if (error instanceof NotFoundException) {
-				throw error;
-			} else {
-				throw new InternalServerErrorException('Failed to delete user');
-			}
+			return this.Response(false, `${error.message}`);
 		}
 	}
 
 	@Put('/:id')
 	async updateUser(@Param('id') id: number, @Body() data: UserEntity) {
-		console.log(data)
 		try {
-			await this.userService.updateUserRecord(id, data);
-			return { message: ` user with id ${id}  updated successfully` }
+			const idNumber = +id;   //use unary op
+			const result = await this.userService.updateUserRecord(idNumber, data);
+			return new Result(true, `Update successful`);
 		} catch (error) {
-			throw error;
+			if (error || error instanceof InternalServerErrorException || error instanceof NotFoundException) {
+				return error
+			}
+			return new Result(false, `${error.message}`);
 		}
 	}
 
@@ -170,80 +189,70 @@ export class UsersController {
 			}
 		}
 	}
-
-
+	private returnResult(success: boolean, message: string, data1?: any, data?: any) {
+		return new Result(success, message, data);
+	}
 	//Change password logged in user
 	@Post('/password/change')
 	async UserChangePasswordRequest(@Body('formData') formData: UserChangePassDTO) {
 		const { password, confirmPassword } = formData;
+		if (!password || !confirmPassword) {
+			return this.returnResult(false, `Password or confirm password field cannot be empty`);
+		}
+		if (password !== confirmPassword) {
+			return this.returnResult(false, `password and confirm password do not match! `);
+		}
 		try {
-			if (password !== confirmPassword) {
-				throw new BadRequestException(`password and confirm password do not match! `);
-			}
-
-			try {
-				await this.passwordValidator.validatePassword(password);
-			} catch (error) {
-				if (error instanceof InternalServerErrorException) {
-					return new SuccessResult(false, error.message);
-				}
-				return new SuccessResult(false, error.message);
-			}
-
-			try {
-				return await this.userService.UserChangePaswordRequest(formData);
-			} catch (error) {
-				if (error instanceof InternalServerErrorException) {
-					return new SuccessResult(false, error.message);
-				}
-				else {
-					return new SuccessResult(false, error.message);
-				}
-			}
-
+			await this.passwordValidator.validatePassword(password);
 		} catch (error) {
-			if (error instanceof BadRequestException) {
-				return new SuccessResult(false, error.message);
+			if (error instanceof InternalServerErrorException) {
+				return this.returnResult(false, error.message);
 			}
+			return this.returnResult(false, error.message);
+		}
+		try {
+			//process password chnage request here
+			return await this.userService.UserChangePaswordRequest(formData);
+		} catch (error) {
+			return error;
 		}
 	}
-
 	//admin password reset.
 	@Post('/password/reset')
 	async ResetPasswordAdminRole(@Body('formData') formData: any) {
-		console.log(formData)
-		const { password, oldPassword, confirmPassword, email } = formData;
-		try {
-			if (password !== confirmPassword) {
-				throw new BadRequestException(`Passwords do not match`);
-			}
-
-			try {
-				await this.passwordValidator.validatePassword(password);
-			} catch (error) {
-				if (error instanceof InternalServerErrorException) {
-					return new SuccessResult(false, error.message);
-				}
-				return new SuccessResult(false, error.message);
-			}
-
-			try {
-				return await this.userService.resetPasswordByAdmin(email, password);
-			} catch (error) {
-				if (error instanceof InternalServerErrorException) {
-					return new SuccessResult(false, error.message);
-				}
-				else {
-					return new SuccessResult(false, error.message);
-				}
-			}
-
-		} catch (error) {
-			if (error instanceof BadRequestException) {
-				return new SuccessResult(false, error.message);
-			}
+		const { password, confirmPassword, userEmail } = formData;
+		if (!password || !confirmPassword) {
+			return { error: `Password or confirm password field cannot be blank` };
 		}
 
+		if (password !== confirmPassword) {
+			return { error: "password and confirm password field values do not match" };
+		}
+		try {
+
+			await this.passwordValidator.validatePassword(password);
+		} catch (error) {
+			if (error || error instanceof BadRequestException || error instanceof BadRequestException || error instanceof InternalServerErrorException) {
+				return { success: false, message: error.message };
+			} else {
+				return { success: false, message: 'An unexpected error occurred during password validation' };
+			}
+		}
+		try {
+			return await this.userService.resetPasswordByAdmin(userEmail, password);
+		} catch (error) {
+			return error;
+		}
+	}
+
+	@Get('/logs')
+	async getLogs(): Promise<UserLog> {
+		try {
+			const result = await this.userService.getSystemLogs();
+			return result
+		} catch (error) {
+			return error;
+		}
 	}
 }
 

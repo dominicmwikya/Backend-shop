@@ -1,8 +1,8 @@
 import { Body, Controller, Post } from "@nestjs/common";
-import { UserEntity } from "src/Modules/Users/entities/User.entity";
-import { CreateEmailDto } from "./dtos/CreateEmaillDto";
+import { UserEntity } from "src/Entities/User.entity";
+import { CreateEmailDto } from "../../Dtos/CreateEmaillDto";
 import { EmailService } from "./email.service";
-import { Email } from "./entities/Email";
+import { Email } from "../../Entities/Email";
 
 @Controller("email")
 export class EmailController {

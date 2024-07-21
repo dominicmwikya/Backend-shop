@@ -1,10 +1,10 @@
-import { Controller } from "@nestjs/common";
+import { Body, Controller } from "@nestjs/common";
 import { BatchService } from "./BatchService";
 @Controller()
 export class BatchController{
  constructor(private batchService: BatchService){}
 
- async  generatePurchaseBatchNumber(){
-     return await this.batchService.generateBatchNumber();
+ async  generatePurchaseBatchNumber(@Body('model') model: any){
+     return await this.batchService.generateBatchNumber(model);
  }
 }

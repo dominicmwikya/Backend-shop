@@ -3,8 +3,8 @@ import { JwtModule, JwtModuleOptions, JwtSignOptions } from '@nestjs/jwt';
 import { UsersModule } from "../Users/UsersModule";
 import { AuthController } from "./AuthController";
 import { AuthService } from "./AuthService";
-import { Bcryptpassword } from "../Utils/bycrpt.util";
-import { AuthGuard } from "./authGuard";
+import { Bcryptpassword } from "../../helpers/bycrpt.util";
+import { AuthGuard } from "../../Guards/authGuard";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 @Module({
     imports: [
