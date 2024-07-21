@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from "@nestjs/typeorm";
-import { Supplier } from "src/Modules/Suppliers/entities/Supplier.Entity";
+import { Supplier } from "src/Entities/Supplier.Entity";
 import { Repository } from "typeorm";
-import { supplierInterface } from "./dtos/supplier.DTO";
+import { supplierInterface } from "../../Dtos/supplier.DTO";
 
 @Injectable()
 export class SupplierService {

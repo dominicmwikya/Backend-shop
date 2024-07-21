@@ -1,22 +1,29 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UserEntity } from 'src/Modules/Users/entities/User.entity';
+import { LoginEntity } from 'src/Entities/Login.Entity';
+import { PasswordHistory } from 'src/Entities/PasswordHistory';
+import { UserEntity } from 'src/Entities/User.entity';
+import { Email } from '../../Entities/Email';
+import { Bcryptpassword } from '../../helpers/bycrpt.util';
+import { EmailValidation } from '../../helpers/emailValidation';
+import { PasswordValidator } from '../../helpers/passwordValidator';
 import { AuthModule } from '../Auth/AuthModule';
+import { AuthService } from '../Auth/AuthService';
 import { EmailModule } from '../Email/Email.Module';
+import { EmailService } from '../Email/email.service';
 import { UsersService } from './UserService';
 import { UsersController } from './UsersController';
-import { EmailValidation } from '../Utils/emailValidation';
-import { PasswordValidator } from '../Utils/passwordValidator';
-import { Bcryptpassword } from '../Utils/bycrpt.util';
-import { EmailService } from '../Email/email.service';
-import { JwtModule } from '@nestjs/jwt';
-import { JwtService } from '@nestjs/jwt';
-import { Email } from '../Email/entities/Email';
-import { LoginEntity } from './entities/Login.Entity';
-import { AuthService } from '../Auth/AuthService';
+import { TransactionsModule } from 'src/helpers/TransactionsModule';
 
 @Module({
-  imports: [AuthModule,EmailModule, TypeOrmModule.forFeature([UserEntity, Email, LoginEntity])],
+  imports: [
+    AuthModule,
+    TransactionsModule,
+    EmailModule, TypeOrmModule.forFeature(
+      [
+        UserEntity, Email, LoginEntity, PasswordHistory
+      ])],
   providers: [UsersService, EmailValidation, PasswordValidator, Bcryptpassword, EmailService, JwtService, AuthService],
   controllers: [UsersController],
   exports: [UsersService, EmailValidation, EmailService, Bcryptpassword, JwtService, AuthService],

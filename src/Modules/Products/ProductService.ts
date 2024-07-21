@@ -1,63 +1,95 @@
 import {
 	ConflictException,
-	HttpException,
-	HttpStatus,
 	Injectable,
 	InternalServerErrorException,
 	NotFoundException
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Product } from "src/Modules/Products/entities/Product.entity";
+import { Product } from "src/Entities/Product.entity";
 import { Between, EntityManager, Repository } from "typeorm";
 import { PurchaseService } from "../Purchases/PurchaseService";
-import { createProductDTO } from "./dtos/createProductDTO";
+import { createProductDTO } from "../../Dtos/createProductDTO";
+import { CategoryEntity } from "../../Entities/CategoryEntity";
+import { Result } from "../category/Response/Result";
+import { CategoryServiceService } from "../category/category-service/category-service.service";
+import { UsersService } from "../Users/UserService";
 @Injectable()
 export class ProductService {
 	constructor(
 		@InjectRepository(Product)
 		private productRepository: Repository<Product>,
 		private readonly purchaseService: PurchaseService,
+		private catService: CategoryServiceService,
+		private userService: UsersService
 	) { }
 
-	async findAll(): Promise<Product[]> {
+	async getAllProductsWithRelations(): Promise<any> {
 		try {
-			const products: Product[] = await this.productRepository.find({ where: { flag: 0 } });
-			if (products.length === 0) {
-				throw new NotFoundException('Product table is EMPTY. PLS ADD PRODUCTS')
+			const products: Product[] = await this.productRepository.find({
+				where: { flag: 0 },
+				relations: ['category']
+			});
+			const response = JSON.stringify(products, null, 2);
+			if (response.length === 0) {
+				return new Result(false, `No table data found`);
 			}
-			return products;
+
+			const data = products.map(product => ({
+				id: product.id,
+				name: product.name,
+				min_qty: product.min_qty,
+				qty: product.qty,
+				sku: product.sku,
+				description: product.description,
+				flag: product.flag,
+				category: product.category.name
+			}));
+			return new Result(true, 'products data', data)
 		} catch (error) {
-			if (error instanceof NotFoundException) {
-				throw error;
-			}
-			throw new InternalServerErrorException(error.message);
+			return new Result(false, `${error.message}`);
 		}
+	}
+
+	private CreateResult(success: boolean, message: string, data?: any) {
+		return new Result(success, message, data);
 	}
 
 	async createProduct(data: createProductDTO) {
 		try {
-			const exists_product = await this.productRepository.findOne({ where: { name: data.name, flag: 0 } });
-			if (!exists_product) {
-				const newProduct = this.productRepository.create(data);
+			const { categoryId, min_qty, qty, name, description, sku, userId } = data;
+			const user = await this.userService.findUser(userId);
+
+			if (!user) {
+				return this.CreateResult(false, `User muust be logged in to add product`);
+			}
+			const categoryExists = await this.catService.CategoryByd(categoryId);
+
+			if (!categoryExists) {
+				return this.CreateResult(false, `Category Id ${categoryId} Not Found`);
+			}
+			const productExists = await this.productRepository.findOne({ where: { name: name, flag: 0 } });
+			if (!productExists) {
+				const newProduct = this.productRepository.create({
+					min_qty,
+					qty,
+					name,
+					description,
+					sku,
+					category: categoryExists,
+					users: user,
+				});
+
 				await this.productRepository.save(newProduct);
-				return { message: `Product ${name} Created successfully` };
+				return this.CreateResult(true, `Product ${data.name} Created successfully`);
 			}
-			throw new ConflictException(`Product ${data.name} already exists! Choose a different name `);
+			return this.CreateResult(false, `Product ${data.name} already exists! Choose a different name`);
 		} catch (error) {
-			if (error instanceof ConflictException) {
-				throw error;
-			}
-			throw new InternalServerErrorException(`Error occured while adding product! - ${error.message}`);
+			return this.CreateResult(false, `${error.message}`);
 		}
 	}
 
 	async updateProductQuantity(entityManager: EntityManager, productId: number, purchase_qty: number) {
 		try {
-			const product = await this.productById(productId);
-			if (!product) {
-				throw new NotFoundException(`Product ${productId} not found`);
-			}
-
 			return await entityManager.update(Product, { id: productId }, { qty: purchase_qty },);
 		} catch (error) {
 			return error;
@@ -108,37 +140,35 @@ export class ProductService {
 	}
 
 	async productById(id: number) {
-		const product = await this.productRepository.findOne({ where: { id: id } });
-		if (!product) {
-			throw new NotFoundException(`Product ${id} not found`);
-		}
-		return product;
+		return await this.productRepository.findOne({ where: { id } });
 	}
 
 	private async findOne(id: number) {
-		const product = await this.productRepository.findOne({
+		return await this.productRepository.findOne({
 			where: { id: id, flag: 0 },
 			relations: ['purchases', 'sales', 'users']
 		});
-
-		if (!product) {
-			throw new NotFoundException(`Product ${id} not found`);
-		}
-		return product;
 	}
-	async generateReport(startDate?: Date, endDate?: Date): Promise<Product[] | { error: string }> {
+
+	async generateReport(startDate?: Date, endDate?: Date): Promise<any> {
 		try {
-			const queryConditions: any = {};
+			const queryBuilder = this.productRepository.createQueryBuilder('product')
+            .leftJoinAndSelect('product.purchases', 'purchase')
+            .leftJoinAndSelect('purchase.batch', 'batch')
+            .select([
+				'product.id',
+				'product.name',
+				'product.description',
+				'product.sku',
+				'product.min_qty',
+				'product.qty',
+            ]);
 
 			if (startDate && endDate) {
-				queryConditions.sell_date = Between(startDate, endDate);
+				queryBuilder.where('product.sell_date BETWEEN :startDate AND :endDate', { startDate, endDate });
 			}
-
-			const product = await this.productRepository.find({
-				relations: ['purchases'],
-				where: queryConditions
-			});
-			return product;
+			const result = await queryBuilder.getMany();
+			return new Result(true, `data`, result);
 		} catch (error) {
 			return error;
 		}

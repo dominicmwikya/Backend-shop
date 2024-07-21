@@ -1,9 +1,9 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { format } from "date-fns";
-import { Receipt } from "src/Modules/Receipts/entities/Receipt.entity";
+import { Receipt } from "src/Entities/Receipt.entity";
 import { EntityManager, Repository } from "typeorm";
-import { ReceiptDTO } from "./dtos/ReceiptDTO";
+import { ReceiptDTO } from "../../Dtos/ReceiptDTO";
 @Injectable()
 export class ReceiptService {
     constructor(

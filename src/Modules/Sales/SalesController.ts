@@ -1,10 +1,9 @@
-import { BadRequestException, Body, Controller, Get, HttpException, HttpStatus, InternalServerErrorException, Post, Query, Res, UsePipes } from '@nestjs/common';
-import { CreateSaleDto } from './dtos/CreateSaleDTO';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { CreateSaleDto } from '../../Dtos/CreateSaleDTO';
 import { SaleService } from './SalesService';
-import { PostSaleDto } from './dtos/PostSaleDto';
-import { query } from 'express';
+import { PostSaleDto } from '../../Dtos/PostSaleDto';
 import { Result } from '../category/Response/Result';
-import { Validate } from 'class-validator';
+import { UserLog } from 'src/Entities/Userlogs';
 @Controller('sales')
 export class SalesController {
     constructor(
@@ -19,16 +18,46 @@ export class SalesController {
             throw error;
         }
     }
+    private JSONResult(success: boolean, message: string, data?: any) {
+        return new Result(success, message, data);
+    }
+    private validateSaleInput(data: PostSaleDto) {
+        const { price, purchaseId, userId, purchaseQty, productId, total } = data;
 
-    @Post('/test')
-    async addRecord(@Body() sale_data: PostSaleDto) {
         try {
-
-            return await this.salesService.addRecord(sale_data);
-        } catch (error) {
-            if (error instanceof BadRequestException) {
-                return new Result(false, `Error: ${error.message}`);
+            if (purchaseId <= 0) {
+                return `Invalid purchaseId  ${purchaseId} value`;
             }
+            if (!purchaseQty || purchaseQty <= 0) {
+                return `Invalid qty  ${purchaseQty} value`;
+            }
+            if (price <= 0) {
+                return `invalid price value ${price}`
+            }
+            if (total <= 0) {
+                return `invalid price value ${total}`
+            }
+            if (productId <= 0) {
+                return `invalid price value ${productId}`
+            }
+            if (userId <= 0) {
+                return `invalid price value ${userId}`
+            }
+            return null
+        } catch (error) {
+            return error;
+        }
+    }
+    
+    @Post('/purchase-sale')
+    async addRecord(@Body() saleData: PostSaleDto) {
+        try {
+            const validationResult = this.validateSaleInput(saleData);
+            if (validationResult) {
+                return this.JSONResult(false, validationResult);
+            }
+            return await this.salesService.addRecord(saleData);
+        } catch (error) {
             return error;
         }
     }
@@ -36,19 +65,15 @@ export class SalesController {
     private validateSaleInputData(data: CreateSaleDto) {
         try {
             const { cart_items, customer_name, grantTotal, totalItems, balance, amount } = data;
-
             if (grantTotal <= 0) {
                 return { error: 'Invalid grantTotal' };
             }
-
             if (amount <= 0) {
                 return { error: 'Invalid amount' };
             }
-
             if (balance < 0) {
                 return { error: `Balance must not be >= 0` };
             }
-
             if (totalItems <= 0) {
                 return { error: 'Total Items must >= 1' }
             }
@@ -72,9 +97,7 @@ export class SalesController {
                 return null;
             }
         } catch (error) {
-            if (error || error instanceof BadRequestException) {
-                return error;
-            }
+            return error;
         }
     }
 
@@ -82,32 +105,21 @@ export class SalesController {
     async createSale(@Body() data: CreateSaleDto) {
         try {
             const validateInput = this.validateSaleInputData(data);
-
             if (validateInput) {
                 return new Result(false, validateInput.error);
             }
-
             return await this.salesService.createSale(data);
         } catch (error) {
-
-            if (error instanceof InternalServerErrorException) {
-                return error;
-            }
-            else {
-                return error
-            }
+            return error;
         }
     }
     //All daily sales
     @Get()
     async fetchSales(@Query('startDate') startDate?: Date, @Query('endDate') endDate?: Date) {
         try {
-            let sales = await this.salesService.sales(startDate, endDate);
-            console.log("sales result", sales)
-            return sales;
+            return await this.salesService.sales(startDate, endDate);
         }
         catch (error) {
-            console.log("error", error)
             return error
         }
     }
@@ -115,8 +127,7 @@ export class SalesController {
     @Get('/product/records')
     async getProductRecords(@Query('id') id: number) {
         try {
-            return await this.salesService.test(id);
-
+            return await this.salesService.getProductRecord(id);
         } catch (error) {
             return error;
         }
@@ -155,12 +166,11 @@ export class SalesController {
     @Get('/report')
     async generateReport(@Query('startDate') startDate?: Date, @Query('endDate') endDate?: Date) {
         try {
-            const result = await this.salesService.generateReport(startDate, endDate);
-            console.log(result);
-            const jsonData = JSON.stringify(result);
-            return jsonData;
+           return  await this.salesService.generateReport(startDate, endDate);
+
         } catch (error) {
-            return { error, success: false }
+           return error;
         }
     }
+
 }
