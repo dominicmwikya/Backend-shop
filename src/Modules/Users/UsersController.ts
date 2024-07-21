@@ -41,7 +41,6 @@ export class UsersController {
 					const userId = authResult.id
 					await this.userService.handleLogOut(userId);
 				} catch (error) {
-					console.log('Token verification failed:', error.message);
 					return res.status(401).json(new Result(false, 'Invalid token, logged out'));
 				}
 			}
